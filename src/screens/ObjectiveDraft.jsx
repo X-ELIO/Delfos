@@ -282,6 +282,12 @@ function downloadBambu(objectives, profile) {
 
 function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
   const { profile } = useProfile()
+  const [saving, setSaving] = useState(false)
+
+  async function handleSubmitClick() {
+    setSaving(true)
+    try { await onSubmit() } finally { setSaving(false) }
+  }
   const active  = objectives.filter(o => o.status !== 'ignored')
   const ignored = objectives.filter(o => o.status === 'ignored')
   const avg     = active.length
@@ -460,7 +466,10 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
             <button style={rp.downloadBtn} onClick={() => downloadBambu(objectives, profile)}>
               ⬇ Export to Excel (BAMBU)
             </button>
-            <button style={rp.submitBtn} onClick={onSubmit}>Submit for approval →</button>
+            <button style={{ ...rp.submitBtn, opacity: saving ? 0.6 : 1 }}
+              disabled={saving} onClick={handleSubmitClick}>
+              {saving ? '⏳ Saving…' : 'Submit for approval →'}
+            </button>
           </div>
         </div>
 
@@ -678,12 +687,77 @@ export default function ObjectiveDraft({ onNavigate }) {
     />
   )
 
+  async function handleSubmit() {
+    const active   = objectives.filter(o => o.status !== 'ignored')
+    const ignored  = objectives.filter(o => o.status === 'ignored')
+    const aiObjs   = objectives.filter(o => o.source === 'delfos')
+    const manual   = objectives.filter(o => o.source !== 'delfos')
+    const avg      = active.length
+      ? Math.round(active.reduce((s, o) => s + (o.score ?? 0), 0) / active.length)
+      : 0
+
+    try {
+      const { data: sub, error: subErr } = await supabase
+        .from('objective_submissions')
+        .insert({
+          employee_name:       profile.full_name,
+          job_title:           profile.job_title ?? null,
+          department:          profile.department ?? null,
+          country_code:        profile.country_code ?? null,
+          country_label:       profile.country_label ?? null,
+          archetype_code:      profile.archetype_code ?? null,
+          archetype_label:     profile.archetype_label ?? null,
+          manager_name:        profile.manager_name ?? null,
+          portfolio_score:     avg,
+          portfolio_summary:   portfolioSummary || null,
+          objectives_total:    objectives.length,
+          objectives_ai:       aiObjs.length,
+          objectives_manual:   manual.length,
+          objectives_ignored:  ignored.length,
+        })
+        .select('id')
+        .single()
+
+      if (subErr) throw subErr
+
+      const objRows = active.map((obj, i) => ({
+        submission_id:   sub.id,
+        seq:             i + 1,
+        title:           obj.title,
+        description:     obj.description ?? null,
+        type:            obj.type ?? 'performance',
+        key_results:     obj.key_results ?? [],
+        by_when:         obj.by_when ?? null,
+        metric:          obj.metric ?? null,
+        value_statement: obj.value_statement ?? null,
+        source:          obj.source ?? 'user',
+        score:           obj.score ?? null,
+        weight:          obj.weight ?? null,
+        feedback:        obj.feedback ?? null,
+        coaching_tips:   obj.coaching_tips ?? [],
+        linked_cascades: obj.linked_cascades ?? [],
+        sub_scores:      obj.sub_scores ?? null,
+      }))
+
+      const { error: objErr } = await supabase
+        .from('submitted_objectives')
+        .insert(objRows)
+
+      if (objErr) throw objErr
+
+      onNavigate('submitted', { objectives })
+    } catch (err) {
+      console.error('submit error:', err)
+      setError(`Error al guardar: ${err?.message ?? String(err)}`)
+    }
+  }
+
   if (phase === 'report') return (
     <ReportScreen
       objectives={objectives}
       portfolioSummary={portfolioSummary}
       onBack={() => setPhase('refine')}
-      onSubmit={() => onNavigate('submitted', { objectives })}
+      onSubmit={handleSubmit}
     />
   )
 
