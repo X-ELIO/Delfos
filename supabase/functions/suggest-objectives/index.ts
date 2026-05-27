@@ -52,11 +52,51 @@ Your task is to generate EXACTLY 5 individual performance objectives for a speci
 
 Return ONLY a valid JSON array with exactly 5 objects — no markdown, no explanation, no trailing text:
 [
-  { "type": "performance", "title": "...", "description": "...", "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."] },
-  { "type": "performance", "title": "...", "description": "...", "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."] },
-  { "type": "performance", "title": "...", "description": "...", "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."] },
-  { "type": "learning",    "title": "...", "description": "...", "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."] },
-  { "type": "learning",    "title": "...", "description": "...", "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."] }
+  {
+    "type": "performance",
+    "title": "...",
+    "description": "...",
+    "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."],
+    "by_when": "Q4 2026",
+    "metric": "primary KPI and target value (e.g. NPS from 45 to 60)",
+    "value_statement": "one sentence: how this objective adds value to X-ELIO's business"
+  },
+  {
+    "type": "performance",
+    "title": "...",
+    "description": "...",
+    "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."],
+    "by_when": "Q3 2026",
+    "metric": "...",
+    "value_statement": "..."
+  },
+  {
+    "type": "performance",
+    "title": "...",
+    "description": "...",
+    "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."],
+    "by_when": "Q4 2026",
+    "metric": "...",
+    "value_statement": "..."
+  },
+  {
+    "type": "learning",
+    "title": "...",
+    "description": "...",
+    "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."],
+    "by_when": "Q2 2026",
+    "metric": "...",
+    "value_statement": "..."
+  },
+  {
+    "type": "learning",
+    "title": "...",
+    "description": "...",
+    "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."],
+    "by_when": "Q3 2026",
+    "metric": "...",
+    "value_statement": "..."
+  }
 ]`
 
     const userPrompt = `## Employee profile
@@ -81,7 +121,7 @@ Design 5 objectives that are highly relevant to this person's role and market, a
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2000,
+        max_tokens: 2500,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       }),
@@ -100,14 +140,17 @@ Design 5 objectives that are highly relevant to this person's role and market, a
     const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1))
 
     const result = parsed.map((s: any, i: number) => ({
-      id: Date.now() + i,
-      type:        s.type ?? 'performance',
-      title:       s.title ?? '',
-      description: s.description ?? '',
-      key_results: s.key_results ?? [],
-      source:      'delfos',
-      status:      'active',
-      score:       null,
+      id:              Date.now() + i,
+      type:            s.type ?? 'performance',
+      title:           s.title ?? '',
+      description:     s.description ?? '',
+      key_results:     s.key_results ?? [],
+      by_when:         s.by_when ?? '',
+      metric:          s.metric ?? '',
+      value_statement: s.value_statement ?? '',
+      source:          'delfos',
+      status:          'active',
+      score:           null,
     }))
 
     return new Response(JSON.stringify(result), {

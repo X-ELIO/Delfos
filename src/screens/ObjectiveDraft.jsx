@@ -230,6 +230,42 @@ function SubScoreBar({ label, weight, value }) {
 }
 
 // ── Report screen ──────────────────────────────────────────────────────────
+function downloadBambu(objectives, profile) {
+  const headers = [
+    'Business Goal / Priority',
+    'By When',
+    'Actions',
+    'How does it add value to the overall business',
+    'Metric',
+    'Status',
+    'Weight (%)',
+  ]
+  const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const rows = objectives
+    .filter(o => o.status !== 'ignored')
+    .map(o => [
+      o.title,
+      o.by_when ?? '',
+      (o.key_results ?? []).join('\n'),
+      o.value_statement || (o.linked_cascades?.join('; ') ?? ''),
+      o.metric ?? '',
+      'Pending Approval',
+      o.weight ?? '',
+    ].map(escape).join(','))
+
+  const bom = '﻿'
+  const csv = bom + [headers.map(escape).join(','), ...rows].join('\r\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href = url
+  a.download = `delfos_bambu_${(profile?.full_name ?? 'export').replace(/\s+/g, '_')}_2026.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
   const { profile } = useProfile()
   const active  = objectives.filter(o => o.status !== 'ignored')
@@ -406,7 +442,12 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 4 }}>
           <button style={rp.backBtn} onClick={onBack}>← Back to Refine</button>
-          <button style={rp.submitBtn} onClick={onSubmit}>Submit for approval →</button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button style={rp.downloadBtn} onClick={() => downloadBambu(objectives, profile)}>
+              ⬇ Download for BAMBU
+            </button>
+            <button style={rp.submitBtn} onClick={onSubmit}>Submit for approval →</button>
+          </div>
         </div>
 
       </div>
@@ -429,6 +470,8 @@ const rp = {
   sectionLabel: { fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--tx2)', marginBottom: 6 },
   bulletText:   { fontSize: 12, color: 'var(--tx2)', lineHeight: 1.5, marginBottom: 4 },
   backBtn:      { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14, cursor: 'pointer' },
+  downloadBtn:  { background: 'none', border: '1px solid var(--border)', color: 'var(--tx2)',
+                  borderRadius: 8, fontSize: 13, fontWeight: 500, padding: '9px 16px', cursor: 'pointer' },
   submitBtn:    { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
                   fontSize: 14, fontWeight: 600, padding: '10px 24px', cursor: 'pointer' },
 }
