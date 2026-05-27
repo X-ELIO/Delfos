@@ -1,0 +1,9 @@
+.env.local
+.env
+node_modules/
+dist/
+
+# Seed files contain confidential data (manager directory + corporate KPIs)
+# Repo MUST be private — do not push these to a public repository
+supabase/seeds/
+migrate.py
