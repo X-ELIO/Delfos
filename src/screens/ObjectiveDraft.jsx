@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../context/ProfileContext'
@@ -240,30 +241,43 @@ function downloadBambu(objectives, profile) {
     'Status',
     'Weight (%)',
   ]
-  const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`
   const rows = objectives
     .filter(o => o.status !== 'ignored')
     .map(o => [
-      o.title,
+      o.title ?? '',
       o.by_when ?? '',
       (o.key_results ?? []).join('\n'),
       o.value_statement || (o.linked_cascades?.join('; ') ?? ''),
       o.metric ?? '',
       'Pending Approval',
       o.weight ?? '',
-    ].map(escape).join(','))
+    ])
 
-  const bom = '﻿'
-  const csv = bom + [headers.map(escape).join(','), ...rows].join('\r\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href = url
-  a.download = `delfos_bambu_${(profile?.full_name ?? 'export').replace(/\s+/g, '_')}_2026.csv`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+
+  // Column widths
+  ws['!cols'] = [
+    { wch: 50 }, // Business Goal
+    { wch: 12 }, // By When
+    { wch: 60 }, // Actions
+    { wch: 50 }, // Value
+    { wch: 40 }, // Metric
+    { wch: 18 }, // Status
+    { wch: 10 }, // Weight
+  ]
+
+  // Wrap text for multi-line cells (Actions column)
+  const range = XLSX.utils.decode_range(ws['!ref'])
+  for (let R = 1; R <= range.e.r; R++) {
+    const cell = ws[XLSX.utils.encode_cell({ r: R, c: 2 })]
+    if (cell) cell.s = { alignment: { wrapText: true } }
+  }
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Objectives')
+
+  const filename = `delfos_bambu_${(profile?.full_name ?? 'export').replace(/\s+/g, '_')}_2026.xlsx`
+  XLSX.writeFile(wb, filename)
 }
 
 function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
@@ -444,7 +458,7 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
           <button style={rp.backBtn} onClick={onBack}>← Back to Refine</button>
           <div style={{ display: 'flex', gap: 10 }}>
             <button style={rp.downloadBtn} onClick={() => downloadBambu(objectives, profile)}>
-              ⬇ Download for BAMBU
+              ⬇ Export to Excel (BAMBU)
             </button>
             <button style={rp.submitBtn} onClick={onSubmit}>Submit for approval →</button>
           </div>
