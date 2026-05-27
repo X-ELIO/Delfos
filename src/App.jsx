@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { ProfileProvider, useProfile } from './context/ProfileContext'
 import ProfileSetup from './screens/ProfileSetup'
 import ObjectiveDraft from './screens/ObjectiveDraft'
+import Settings from './screens/Settings'
+import ManagerView from './screens/ManagerView'
 import Shell from './components/Shell'
 
 function Submitted({ objectives }) {
@@ -34,11 +36,25 @@ function Router() {
 
   if (!profile) return <ProfileSetup />
 
+  const goSettings    = () => setScreen('settings')
+  const goManager     = () => setScreen('manager')
+  const goObjectives  = () => setScreen('objectives')
+
+  if (screen === 'settings') return <Settings onBack={goObjectives} />
+  if (screen === 'manager')  return <ManagerView onBack={goObjectives} />
+
   if (screen === 'objectives')
-    return <ObjectiveDraft onNavigate={(to, data = {}) => {
-      if (to === 'profile') { clearProfile(); return }
-      setPayload(data); setScreen(to)
-    }} />
+    return (
+      <ObjectiveDraft
+        onNavigate={(to, data = {}) => {
+          if (to === 'profile') { clearProfile(); return }
+          setPayload(data)
+          setScreen(to)
+        }}
+        onSettings={goSettings}
+        onManagerView={goManager}
+      />
+    )
 
   if (screen === 'submitted')
     return <Submitted objectives={payload?.objectives} />

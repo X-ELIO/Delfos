@@ -29,9 +29,9 @@ const ARCHETYPE_META = {
 const PEOPLE_KPIS = [
   { key: 'Employee Engagement Score',       target: '≥80 (team-level)' },
   { key: 'Voluntary Turnover Rate',         target: '<10% annualised' },
-  { key: 'Regrettable Attrition',           target: '<50% of direct reports' },
+  { key: 'Regrettable Attrition',           target: '0 losses in direct reports' },
   { key: 'Individual objectives Completion',target: '100% of reports with active individual objectives' },
-  { key: 'Internal Mobility',               target: '≥80% roles filled internally' },
+  { key: 'Internal Mobility',               target: '≥15% roles filled internally' },
   { key: 'Gender Balance — Measures & Improvement',
     target: 'Take appropriate measures — diverse slates, sourcing network expansion, female talent pipeline reinforcement. Target: improve overall gender balance by 2–4 pp by Q4 vs Jan baseline, measured at function/cohort level not per decision, not per hire.' },
 ]
@@ -44,7 +44,7 @@ export default function ProfileSetup() {
 
   const [form, setForm] = useState({
     full_name: '', job_title: '', department: '',
-    manager_id: '', country_code: '', archetype_code: '',
+    manager_id: '', country_code: '', country_other: '', archetype_code: '',
     current_priorities: '',
   })
 
@@ -67,12 +67,14 @@ export default function ProfileSetup() {
     const manager = ref.managers.find(m => m.id === form.manager_id)
     const country = ref.countries.find(c => c.code === form.country_code)
     const arch    = ARCHETYPE_META[form.archetype_code]
+    const countryCode  = form.country_code === 'other' ? 'other' : (country?.code ?? null)
+    const countryLabel = form.country_code === 'other' ? (form.country_other.trim() || 'Other') : (country?.label ?? null)
     saveProfile({
       full_name:         form.full_name.trim(),
       job_title:         form.job_title.trim(),
       department:        form.department.trim(),
-      country_code:      country?.code ?? null,
-      country_label:     country?.label ?? null,
+      country_code:      countryCode,
+      country_label:     countryLabel,
       archetype_code:    form.archetype_code,
       archetype_label:   arch?.label ?? null,
       has_people_kpis:   ['A', 'B'].includes(form.archetype_code),
@@ -86,7 +88,8 @@ export default function ProfileSetup() {
   const manager    = ref.managers.find(m => m.id === form.manager_id)
   const country    = ref.countries.find(c => c.code === form.country_code)
   const hasPeople  = ['A', 'B'].includes(form.archetype_code)
-  const canSubmit  = form.full_name && form.country_code && form.archetype_code
+  const countryOk  = form.country_code && (form.country_code !== 'other' || form.country_other.trim())
+  const canSubmit  = form.full_name && form.manager_id && countryOk && form.archetype_code
 
   if (loading) return (
     <Shell step={0}>
@@ -141,7 +144,14 @@ export default function ProfileSetup() {
               {ref.countries.map(c => (
                 <option key={c.code} value={c.code}>{c.label}</option>
               ))}
+              <option value="other">Other (specify)</option>
             </select>
+            {form.country_code === 'other' && (
+              <input style={{ ...s.input, marginTop: 8 }}
+                type="text" value={form.country_other}
+                onChange={e => set('country_other', e.target.value)}
+                placeholder="Enter your country or market" />
+            )}
             {country?.code === 'corporate' && (
               <p style={s.hint}>Corporate HQ roles draw their context directly from company-level objectives.</p>
             )}

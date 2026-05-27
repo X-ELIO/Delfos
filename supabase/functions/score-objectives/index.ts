@@ -20,17 +20,16 @@ Deno.serve(async (req) => {
 
 Score each objective for Bonus Potential (0–100). Then write a portfolio-level summary.
 
-Scoring dimensions:
-- Role fit (25%): realistic and meaningful for this specific job title, department, seniority, and market?
-- Business impact (20%): moves a metric that genuinely matters for X-ELIO?
-- Cascade alignment (20%): connects naturally to corporate or country strategic priorities?
-- Ambition (15%): target is genuinely stretching, not just business-as-usual?
-- Measurability (15%): clear baseline, target, and measurement method?
-- SMART quality (5%): specific and time-bound?
+Scoring dimensions (weights must reflect exactly these percentages in your sub_scores):
+- Relevance (35%): Is this objective realistic and meaningful for this specific job title, department, seniority, and market? Does it connect naturally to strategic priorities?
+- Impact (25%): Does it move a metric that genuinely matters for X-ELIO's business goals?
+- Ambition (20%): Is the target genuinely stretching, not just business-as-usual?
+- Measurability (15%): Are there a clear baseline, target, and measurement method?
+- Time-bound (5%): Are specific dates, quarters, or deadlines included?
 
 Rules:
 - Portfolio weights must sum to EXACTLY 100
-- feedback: one sharp sentence on the main concern or stretch quality of this objective (shown as italic callout)
+- feedback: one sharp sentence on the main concern or stretch quality (shown as italic callout)
 - coaching_tips: 1-2 concrete actions to increase this objective's score (max 15 words each, specific not generic)
 - linked_cascades: short text of cascade items this connects to (empty array if none)
 - summary: 3-4 sentences evaluating the full portfolio — name specific objectives by title fragment, identify the top strength and the key gap to address
@@ -46,7 +45,7 @@ Return ONLY a valid JSON object, no markdown, no explanation:
       "feedback": "one sharp concern or stretch sentence",
       "coaching_tips": ["specific action 1", "specific action 2"],
       "linked_cascades": ["cascade item text"],
-      "sub_scores": { "role_fit": 80, "impact": 75, "relevance": 70, "ambition": 80, "measurability": 85, "smart": 90 }
+      "sub_scores": { "relevance": 80, "impact": 75, "ambition": 80, "measurability": 85, "time_bound": 90 }
     }
   ]
 }`
@@ -102,7 +101,7 @@ Score each objective and write the portfolio summary. All weights must sum to 10
           feedback:        s.feedback ?? '',
           coaching_tips:   s.coaching_tips ?? [],
           linked_cascades: s.linked_cascades ?? [],
-          sub_scores:      s.sub_scores ?? { role_fit: 70, impact: 70, relevance: 70, ambition: 70, measurability: 70, smart: 70 },
+          sub_scores:      s.sub_scores ?? { relevance: 70, impact: 70, ambition: 70, measurability: 70, time_bound: 70 },
         }
       }),
     }

@@ -1,9 +1,8 @@
 const STEPS = ['Role', 'Objectives', 'Report']
 
-export default function Shell({ children, step = 0, bonusChip = null, showManagerTab = false }) {
+export default function Shell({ children, step = 0, bonusChip = null, onSettings = null, onManagerView = null }) {
   return (
     <div style={s.root}>
-      {/* ── Body ── */}
       <div style={s.body}>
         {/* Top bar */}
         <header style={s.topbar}>
@@ -16,8 +15,9 @@ export default function Shell({ children, step = 0, bonusChip = null, showManage
             {/* Mode tabs */}
             <div style={s.tabs}>
               <button style={{ ...s.tab, ...s.tabActive }}>Employee</button>
-              {showManagerTab && <button style={s.tab}>Manager</button>}
-              {showManagerTab && <button style={s.tab}>Coverage</button>}
+              {onManagerView && (
+                <button style={s.tab} onClick={onManagerView}>Manager</button>
+              )}
             </div>
 
             {/* Step progress */}
@@ -28,11 +28,11 @@ export default function Shell({ children, step = 0, bonusChip = null, showManage
                   <div style={{
                     ...s.stepDot,
                     background: i <= step ? 'var(--ac)' : 'var(--card-2)',
-                    color: i <= step ? '#fff' : 'var(--tx2)',
+                    color:      i <= step ? '#fff'      : 'var(--tx2)',
                   }}>{i + 1}</div>
                   <span style={{
                     ...s.stepLabel,
-                    color: i <= step ? 'var(--tx)' : 'var(--tx2)',
+                    color:      i <= step ? 'var(--tx)'  : 'var(--tx2)',
                     fontWeight: i === step ? 600 : 400,
                   }}>{label}</span>
                 </div>
@@ -44,7 +44,7 @@ export default function Shell({ children, step = 0, bonusChip = null, showManage
               <div style={{
                 ...s.bonusChip,
                 borderColor: bonusChip.color === 'amber' ? 'var(--warn)' : 'var(--ok)',
-                color: bonusChip.color === 'amber' ? 'var(--warn)' : 'var(--ok)',
+                color:       bonusChip.color === 'amber' ? 'var(--warn)' : 'var(--ok)',
               }}>
                 <span style={s.bonusDot} /> BONUS POTENTIAL {bonusChip.value}%{' '}
                 <span style={{
@@ -54,6 +54,11 @@ export default function Shell({ children, step = 0, bonusChip = null, showManage
                   {bonusChip.color === 'amber' ? 'AMBER' : 'GREEN'}
                 </span>
               </div>
+            )}
+
+            {/* Settings gear */}
+            {onSettings && (
+              <button onClick={onSettings} style={s.gearBtn} title="Settings">⚙</button>
             )}
           </div>
         </header>
@@ -73,20 +78,19 @@ export default function Shell({ children, step = 0, bonusChip = null, showManage
 }
 
 const s = {
-  root:    { display: 'flex', height: '100vh', overflow: 'hidden' },
-
-  body:    { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  topbar:  { height: 48, flexShrink: 0, display: 'flex', alignItems: 'center',
-             justifyContent: 'space-between', padding: '0 20px',
-             borderBottom: '1px solid var(--border)' },
-  brand:   { display: 'flex', flexDirection: 'column', lineHeight: 1 },
+  root:      { display: 'flex', height: '100vh', overflow: 'hidden' },
+  body:      { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  topbar:    { height: 48, flexShrink: 0, display: 'flex', alignItems: 'center',
+               justifyContent: 'space-between', padding: '0 20px',
+               borderBottom: '1px solid var(--border)' },
+  brand:     { display: 'flex', flexDirection: 'column', lineHeight: 1 },
   brandName: { fontSize: 13, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--tx)' },
   brandSub:  { fontSize: 9, fontWeight: 500, letterSpacing: '0.08em', color: 'var(--tx2)' },
 
-  topRight: { display: 'flex', alignItems: 'center', gap: 16 },
-  tabs:     { display: 'flex', gap: 2, background: 'var(--card)', borderRadius: 8, padding: 3 },
-  tab:      { background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer',
-              fontSize: 12, fontWeight: 500, padding: '4px 12px', borderRadius: 6 },
+  topRight:  { display: 'flex', alignItems: 'center', gap: 16 },
+  tabs:      { display: 'flex', gap: 2, background: 'var(--card)', borderRadius: 8, padding: 3 },
+  tab:       { background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer',
+               fontSize: 12, fontWeight: 500, padding: '4px 12px', borderRadius: 6 },
   tabActive: { background: 'var(--ac)', color: '#fff' },
 
   stepper:   { display: 'flex', alignItems: 'center', gap: 0 },
@@ -100,8 +104,12 @@ const s = {
                borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 600 },
   bonusDot:  { width: 6, height: 6, borderRadius: '50%', background: 'currentColor' },
 
-  main:   { flex: 1, overflow: 'auto', padding: '40px 24px' },
-  footer: { height: 32, flexShrink: 0, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', borderTop: '1px solid var(--border)',
-            fontSize: 11, color: 'var(--tx2)', letterSpacing: '0.01em' },
+  gearBtn:   { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 15,
+               cursor: 'pointer', padding: '4px 6px', borderRadius: 6,
+               lineHeight: 1, transition: 'color 0.15s' },
+
+  main:      { flex: 1, overflow: 'auto', padding: '40px 24px' },
+  footer:    { height: 32, flexShrink: 0, display: 'flex', alignItems: 'center',
+               justifyContent: 'center', borderTop: '1px solid var(--border)',
+               fontSize: 11, color: 'var(--tx2)', letterSpacing: '0.01em' },
 }

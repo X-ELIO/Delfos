@@ -3,31 +3,65 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../context/ProfileContext'
 import { suggestObjectives, scoreObjectives, improveObjective } from '../lib/delfos'
-// scoreObjectives is also used inside RefineScreen for re-scoring after improvement
 import Shell from '../components/Shell'
+import { ARCHETYPE_THRESHOLDS } from '../lib/constants'
+
+// ── Threshold helpers ──────────────────────────────────────────────────────
+function getThreshold(archetype_code) {
+  return ARCHETYPE_THRESHOLDS[archetype_code] ?? { min: 60, green: 75 }
+}
+
+function scoreColor(score, thresh) {
+  if (score == null) return 'var(--tx2)'
+  if (score >= thresh.green) return 'var(--ok)'
+  if (score >= thresh.min)   return 'var(--warn)'
+  return 'var(--err)'
+}
+
+function getScoreLabel(score, thresh) {
+  if (score >= thresh.green) return 'HIGH IMPACT'
+  if (score >= thresh.min)   return 'MEDIUM'
+  return 'LOW'
+}
+
+// ── Type-specific placeholders ─────────────────────────────────────────────
+const PLACEHOLDERS = {
+  performance: {
+    title:       'e.g. Reduce voluntary turnover from 14% to <10% by Q4 2026',
+    description: "What metric moves? By when? What's the baseline? Include 3 key results.",
+  },
+  learning: {
+    title:       'e.g. Complete AWS Solutions Architect certification by Q2 2026',
+    description: 'What skill are you acquiring? How will you apply it? What is the evidence of completion?',
+  },
+  team: {
+    title:       'e.g. Improve team engagement score from 72 to ≥80 by Q3 2026',
+    description: "What team metric improves? What actions drive it? How is it measured at team level?",
+  },
+}
 
 const LOAD_MESSAGES = {
   asking: [
     [0,  'This may take a moment…'],
     [20, 'This is taking a bit longer than usual (20s) — likely rate-limited. Delfos is retrying automatically.'],
-    [45, 'Still working (45s). The system is busy — Delfos is automatically retrying. Please don\'t refresh.'],
+    [45, "Still working (45s). The system is busy — Delfos is automatically retrying. Please don't refresh."],
     [75, 'Still working (75s). Hang tight, almost there.'],
   ],
   scoring: [
     [0,  'This may take a moment…'],
     [20, 'Scoring your portfolio… this can take up to 60s.'],
-    [45, 'Still working (45s). The system is busy with many concurrent requests — Delfos is automatically retrying. Please don\'t refresh.'],
+    [45, "Still working (45s). The system is busy — Delfos is automatically retrying. Please don't refresh."],
     [75, 'Still working (75s). Almost done.'],
   ],
 }
 
 // ── Loading screen ─────────────────────────────────────────────────────────
-function LoadingScreen({ action, elapsed }) {
-  const msgs = LOAD_MESSAGES[action] ?? []
-  const msg  = [...msgs].reverse().find(([t]) => elapsed >= t)?.[1] ?? ''
+function LoadingScreen({ action, elapsed, onSettings, onManagerView }) {
+  const msgs  = LOAD_MESSAGES[action] ?? []
+  const msg   = [...msgs].reverse().find(([t]) => elapsed >= t)?.[1] ?? ''
   const title = action === 'asking' ? 'Asking Delfos for suggestions…' : 'Scoring your portfolio…'
   return (
-    <Shell step={1}>
+    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
                     justifyContent: 'center', height: '100%', gap: 20, textAlign: 'center' }}>
         <div style={ls.spinner} />
@@ -48,10 +82,13 @@ const ls = {
 }
 
 // ── Refine screen ──────────────────────────────────────────────────────────
-function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImproved, onRescored, cascade }) {
+function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImproved, onRescored, cascade, onSettings, onManagerView }) {
   const { profile } = useProfile()
+  const thresh = getThreshold(profile?.archetype_code)
+
   const [improving, setImproving] = useState({}) // id -> 'improving'|'scoring'|null
   const [proposals, setProposals] = useState({}) // id -> improved obj
+  const [editing,   setEditing]   = useState({}) // id -> { title, description }
 
   async function handleImprove(obj) {
     setImproving(p => ({ ...p, [obj.id]: 'improving' }))
@@ -66,13 +103,11 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
   }
 
   async function acceptProposal(obj) {
-    const improved = proposals[obj.id]
-    // Merge improved content into the objective
-    const updatedObj = { ...obj, ...improved, source: 'delfos' }
-    onAcceptImproved(obj.id, improved)
+    const improved   = proposals[obj.id]
+    const updatedObj = { ...obj, ...improved, source: 'delfos', was_improved: true }
+    onAcceptImproved(obj.id, { ...improved, was_improved: true })
     setProposals(p => { const n = { ...p }; delete n[obj.id]; return n })
 
-    // Re-score just this objective
     setImproving(p => ({ ...p, [obj.id]: 'scoring' }))
     try {
       const result   = await scoreObjectives({ profile, objectives: [updatedObj], cascade })
@@ -85,13 +120,38 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
     }
   }
 
-  const active  = objectives.filter(o => o.status !== 'ignored')
-  const total   = active.reduce((s, o) => s + (o.score ?? 0), 0)
-  const avg     = active.length ? Math.round(total / active.length) : 0
-  const color   = avg >= 80 ? 'var(--ok)' : avg >= 65 ? 'var(--warn)' : 'var(--err)'
+  function startEdit(obj) {
+    setEditing(p => ({ ...p, [obj.id]: { title: obj.title, description: obj.description ?? '' } }))
+  }
+
+  function cancelEdit(id) {
+    setEditing(p => { const n = { ...p }; delete n[id]; return n })
+  }
+
+  async function saveEdit(obj) {
+    const ed         = editing[obj.id]
+    const updatedObj = { ...obj, title: ed.title, description: ed.description }
+    onAcceptImproved(obj.id, { title: ed.title, description: ed.description, source: 'user' })
+    cancelEdit(obj.id)
+
+    setImproving(p => ({ ...p, [obj.id]: 'scoring' }))
+    try {
+      const result   = await scoreObjectives({ profile, objectives: [updatedObj], cascade })
+      const rescored = result?.objectives ?? result
+      if (rescored?.[0]) onRescored(obj.id, rescored[0])
+    } catch (err) {
+      console.error('rescore error:', err)
+    } finally {
+      setImproving(p => ({ ...p, [obj.id]: null }))
+    }
+  }
+
+  const active = objectives.filter(o => o.status !== 'ignored')
+  const avg    = active.length ? Math.round(active.reduce((s, o) => s + (o.score ?? 0), 0) / active.length) : 0
+  const color  = scoreColor(avg, thresh)
 
   return (
-    <Shell step={1}>
+    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView}>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
@@ -109,61 +169,121 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 24 }}>
-          {objectives.map((obj, i) => (
-            <div key={obj.id} style={{
-              ...rs.card,
-              opacity: obj.status === 'ignored' ? 0.4 : 1,
-            }}>
-              <div style={rs.cardHead}>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={rs.objBadge}>OBJ {i + 1}</span>
-                  {obj.source === 'delfos' && <span style={rs.delfosBadge}>DELFOS</span>}
-                </div>
-                <span style={{ fontSize: 22, fontWeight: 800, color: obj.score >= 80 ? 'var(--ok)' : 'var(--warn)' }}>
-                  {obj.score}%
-                </span>
-              </div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--tx)', margin: '10px 0 6px' }}>{obj.title}</p>
-              <p style={{ fontSize: 13, color: 'var(--tx2)', marginBottom: 8 }}>{obj.description}</p>
-              {obj.key_results?.length > 0 && (
-                <div style={{ marginBottom: 10 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--tx2)', marginBottom: 4 }}>Key Results:</p>
-                  {obj.key_results.map((kr, j) => (
-                    <p key={j} style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 2 }}>{kr}</p>
-                  ))}
-                </div>
-              )}
-              {obj.status !== 'ignored' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button style={rs.btnAi}
-                      disabled={!!improving[obj.id]}
-                      onClick={() => handleImprove(obj)}>
-                      {improving[obj.id] === 'improving' ? '⏳ Asking Delfos…'
-                        : improving[obj.id] === 'scoring' ? '⏳ Re-scoring…'
-                        : '✦ Ask Delfos to improve quality'}
-                    </button>
-                    <button style={rs.btnIgnore} onClick={() => onIgnore(obj.id)}>Ignore</button>
+          {objectives.map((obj, i) => {
+            const sc       = obj.score ?? 0
+            const scCol    = scoreColor(sc, thresh)
+            const belowMin = sc > 0 && sc < thresh.min
+            const ed       = editing[obj.id]
+
+            return (
+              <div key={obj.id} style={{
+                ...rs.card,
+                opacity:     obj.status === 'ignored' ? 0.4 : 1,
+                borderColor: belowMin && obj.status !== 'ignored' ? 'rgba(239,68,68,0.5)' : 'var(--border)',
+              }}>
+                <div style={rs.cardHead}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={rs.objBadge}>OBJ {i + 1}</span>
+                    {obj.source === 'delfos' && <span style={rs.delfosBadge}>DELFOS</span>}
+                    {obj.type   === 'team'   && <span style={rs.teamBadge}>TEAM</span>}
+                    {obj.type   === 'learning' && <span style={rs.learnBadge}>LEARNING</span>}
+                    {belowMin && obj.status !== 'ignored' && (
+                      <span style={rs.threshBadge}>BELOW THRESHOLD</span>
+                    )}
                   </div>
-                  {proposals[obj.id] && (
-                    <div style={rs.proposal}>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--ac)', marginBottom: 6, letterSpacing: '0.08em' }}>DELFOS SUGGESTS</p>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)', marginBottom: 4 }}>{proposals[obj.id].title}</p>
-                      <p style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 6 }}>{proposals[obj.id].description}</p>
-                      {proposals[obj.id].key_results?.map((kr, j) => (
-                        <p key={j} style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 2 }}>{kr}</p>
-                      ))}
-                      <button style={rs.btnAccept} onClick={() => acceptProposal(obj)}>✓ Accept this improvement</button>
-                    </div>
+                  {sc > 0 && (
+                    <span style={{ fontSize: 22, fontWeight: 800, color: scCol }}>{sc}%</span>
                   )}
                 </div>
-              )}
-            </div>
-          ))}
+
+                {ed ? (
+                  /* ── Inline edit mode ── */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                    <input
+                      style={rs.editInput}
+                      value={ed.title}
+                      onChange={e => setEditing(p => ({ ...p, [obj.id]: { ...p[obj.id], title: e.target.value } }))}
+                      placeholder="Objective title"
+                    />
+                    <textarea
+                      style={{ ...rs.editInput, minHeight: 72, resize: 'vertical' }}
+                      value={ed.description}
+                      onChange={e => setEditing(p => ({ ...p, [obj.id]: { ...p[obj.id], description: e.target.value } }))}
+                      placeholder="Description, KRs, timeline…"
+                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button style={rs.btnAccept} disabled={!!improving[obj.id]} onClick={() => saveEdit(obj)}>
+                        {improving[obj.id] === 'scoring' ? '⏳ Re-scoring…' : '✓ Save & re-score'}
+                      </button>
+                      <button style={rs.btnIgnore} onClick={() => cancelEdit(obj.id)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Normal view ── */
+                  <>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--tx)', margin: '10px 0 6px' }}>{obj.title}</p>
+                    <p style={{ fontSize: 13, color: 'var(--tx2)', marginBottom: 8 }}>{obj.description}</p>
+
+                    {obj.key_results?.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--tx2)', marginBottom: 4 }}>Key Results:</p>
+                        {obj.key_results.map((kr, j) => (
+                          <p key={j} style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 2 }}>{kr}</p>
+                        ))}
+                      </div>
+                    )}
+
+                    {obj.feedback && (
+                      <p style={{ fontSize: 12, fontStyle: 'italic', color: scCol, marginBottom: 8, lineHeight: 1.4 }}>
+                        {obj.feedback}
+                      </p>
+                    )}
+
+                    {belowMin && obj.coaching_tips?.length > 0 && (
+                      <div style={rs.liftBox}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--err)', marginBottom: 6, letterSpacing: '0.08em' }}>
+                          TO LIFT THIS SCORE
+                        </p>
+                        {obj.coaching_tips.map((tip, j) => (
+                          <p key={j} style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 3 }}>• {tip}</p>
+                        ))}
+                      </div>
+                    )}
+
+                    {obj.status !== 'ignored' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button style={rs.btnAi} disabled={!!improving[obj.id]} onClick={() => handleImprove(obj)}>
+                            {improving[obj.id] === 'improving' ? '⏳ Asking Delfos…'
+                              : improving[obj.id] === 'scoring' ? '⏳ Re-scoring…'
+                              : '✦ Ask Delfos to improve'}
+                          </button>
+                          <button style={rs.btnEdit} onClick={() => startEdit(obj)}>✎ Edit</button>
+                          <button style={rs.btnIgnore} onClick={() => onIgnore(obj.id)}>Ignore</button>
+                        </div>
+
+                        {proposals[obj.id] && (
+                          <div style={rs.proposal}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--ac)', marginBottom: 6, letterSpacing: '0.08em' }}>DELFOS SUGGESTS</p>
+                            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)', marginBottom: 4 }}>{proposals[obj.id].title}</p>
+                            <p style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 6 }}>{proposals[obj.id].description}</p>
+                            {proposals[obj.id].key_results?.map((kr, j) => (
+                              <p key={j} style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 2 }}>{kr}</p>
+                            ))}
+                            <button style={rs.btnAccept} onClick={() => acceptProposal(obj)}>✓ Accept this improvement</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-          <button style={rs.back} onClick={onBack}>← Back</button>
+          <button style={rs.back}   onClick={onBack}>← Back</button>
           <button style={rs.submit} onClick={onContinue}>Review & Submit →</button>
         </div>
 
@@ -173,34 +293,47 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
 }
 
 const rs = {
-  card:       { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px' },
-  cardHead:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  objBadge:   { background: 'var(--card-2)', color: 'var(--tx2)', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 4 },
-  delfosBadge:{ background: 'var(--ac)', color: '#fff', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4 },
-  btnOutline: { background: 'none', border: '1px solid var(--border)', color: 'var(--tx2)',
-                fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
-  btnAi:      { background: 'rgba(99,91,255,0.15)', border: '1px solid rgba(99,91,255,0.3)',
-                color: 'var(--ac)', fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
-  btnIgnore:  { background: 'none', border: 'none', color: 'var(--err)', fontSize: 12,
-                padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
-  back:       { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14, cursor: 'pointer' },
-  submit:     { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
-                fontSize: 14, fontWeight: 600, padding: '10px 24px', cursor: 'pointer' },
-  proposal:   { background: 'rgba(99,91,255,0.08)', border: '1px solid rgba(99,91,255,0.25)',
-                borderRadius: 8, padding: '12px 14px' },
-  btnAccept:  { marginTop: 10, background: 'var(--ok)', color: '#fff', border: 'none',
-                borderRadius: 6, fontSize: 12, fontWeight: 600, padding: '6px 14px', cursor: 'pointer' },
+  card:        { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px' },
+  cardHead:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  objBadge:    { background: 'var(--card-2)', color: 'var(--tx2)', fontSize: 10, fontWeight: 700,
+                 letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 4 },
+  delfosBadge: { background: 'var(--ac)', color: '#fff', fontSize: 10, fontWeight: 700,
+                 letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4 },
+  teamBadge:   { background: 'var(--err)', color: '#fff', fontSize: 10, fontWeight: 700,
+                 letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4 },
+  learnBadge:  { background: '#2563eb', color: '#fff', fontSize: 10, fontWeight: 700,
+                 letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4 },
+  threshBadge: { background: 'rgba(239,68,68,0.12)', color: 'var(--err)', fontSize: 10, fontWeight: 700,
+                 letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4, border: '1px solid rgba(239,68,68,0.4)' },
+  liftBox:     { background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)',
+                 borderRadius: 6, padding: '8px 12px', marginBottom: 8 },
+  editInput:   { background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 8,
+                 color: 'var(--tx)', fontSize: 14, padding: '9px 12px', outline: 'none',
+                 lineHeight: 1.5, width: '100%' },
+  btnAi:       { background: 'rgba(99,91,255,0.15)', border: '1px solid rgba(99,91,255,0.3)',
+                 color: 'var(--ac)', fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
+  btnEdit:     { background: 'none', border: '1px solid var(--border)', color: 'var(--tx2)',
+                 fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
+  btnIgnore:   { background: 'none', border: 'none', color: 'var(--err)', fontSize: 12,
+                 padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
+  back:        { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14, cursor: 'pointer' },
+  submit:      { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
+                 fontSize: 14, fontWeight: 600, padding: '10px 24px', cursor: 'pointer' },
+  proposal:    { background: 'rgba(99,91,255,0.08)', border: '1px solid rgba(99,91,255,0.25)',
+                 borderRadius: 8, padding: '12px 14px' },
+  btnAccept:   { marginTop: 10, background: 'var(--ok)', color: '#fff', border: 'none',
+                 borderRadius: 6, fontSize: 12, fontWeight: 600, padding: '6px 14px', cursor: 'pointer' },
 }
 
 // ── Score gauge (SVG donut) ────────────────────────────────────────────────
-function ScoreGauge({ score, size = 120 }) {
+function ScoreGauge({ score, size = 120, thresh }) {
   const sw   = Math.max(5, size * 0.09)
   const r    = (size - sw * 2) / 2
   const circ = 2 * Math.PI * r
-  const off  = circ * (1 - Math.min(score, 100) / 100)
-  const col  = score >= 80 ? 'var(--ok)' : score >= 65 ? 'var(--warn)' : 'var(--err)'
+  const off  = circ * (1 - Math.min(score ?? 0, 100) / 100)
+  const col  = thresh
+    ? scoreColor(score, thresh)
+    : (score >= 80 ? 'var(--ok)' : score >= 65 ? 'var(--warn)' : 'var(--err)')
   const cx   = size / 2
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
@@ -216,30 +349,33 @@ function ScoreGauge({ score, size = 120 }) {
   )
 }
 
-// ── Sub-score bar ──────────────────────────────────────────────────────────
+// ── Sub-score bar — 5 dimensions ───────────────────────────────────────────
+const SUB_SCORE_DIMS = [
+  { key: 'relevance',     label: 'Relevance',       weight: 35 },
+  { key: 'impact',        label: 'Business Impact',  weight: 25 },
+  { key: 'ambition',      label: 'Ambition',         weight: 20 },
+  { key: 'measurability', label: 'Measurability',    weight: 15 },
+  { key: 'time_bound',    label: 'Time-bound',       weight: 5  },
+]
+
 function SubScoreBar({ label, weight, value }) {
   const col = value >= 80 ? 'var(--ok)' : value >= 65 ? 'var(--warn)' : 'var(--err)'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ fontSize: 11, color: 'var(--tx2)', width: 170, flexShrink: 0 }}>{label} ({weight}%)</span>
       <div style={{ flex: 1, height: 3, background: 'var(--card-2)', borderRadius: 2 }}>
-        <div style={{ width: `${Math.min(value, 100)}%`, height: '100%', background: col, borderRadius: 2 }} />
+        <div style={{ width: `${Math.min(value ?? 0, 100)}%`, height: '100%', background: col, borderRadius: 2 }} />
       </div>
       <span style={{ fontSize: 11, fontWeight: 700, color: col, width: 22, textAlign: 'right' }}>{value}</span>
     </div>
   )
 }
 
-// ── Report screen ──────────────────────────────────────────────────────────
+// ── BAMBU export ───────────────────────────────────────────────────────────
 function downloadBambu(objectives, profile) {
   const headers = [
-    'Business Goal / Priority',
-    'By When',
-    'Actions',
-    'How does it add value to the overall business',
-    'Metric',
-    'Status',
-    'Weight (%)',
+    'Business Goal / Priority', 'By When', 'Actions',
+    'How does it add value to the overall business', 'Metric', 'Status', 'Weight (%)',
   ]
   const rows = objectives
     .filter(o => o.status !== 'ignored')
@@ -254,58 +390,55 @@ function downloadBambu(objectives, profile) {
     ])
 
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
-
-  // Column widths
   ws['!cols'] = [
-    { wch: 50 }, // Business Goal
-    { wch: 12 }, // By When
-    { wch: 60 }, // Actions
-    { wch: 50 }, // Value
-    { wch: 40 }, // Metric
-    { wch: 18 }, // Status
-    { wch: 10 }, // Weight
+    { wch: 50 }, { wch: 12 }, { wch: 60 }, { wch: 50 }, { wch: 40 }, { wch: 18 }, { wch: 10 },
   ]
-
-  // Wrap text for multi-line cells (Actions column)
   const range = XLSX.utils.decode_range(ws['!ref'])
   for (let R = 1; R <= range.e.r; R++) {
     const cell = ws[XLSX.utils.encode_cell({ r: R, c: 2 })]
     if (cell) cell.s = { alignment: { wrapText: true } }
   }
-
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Objectives')
-
-  const filename = `delfos_bambu_${(profile?.full_name ?? 'export').replace(/\s+/g, '_')}_2026.xlsx`
-  XLSX.writeFile(wb, filename)
+  XLSX.writeFile(wb, `delfos_bambu_${(profile?.full_name ?? 'export').replace(/\s+/g, '_')}_2026.xlsx`)
 }
 
-function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
+// ── Report screen ──────────────────────────────────────────────────────────
+function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettings, onManagerView }) {
   const { profile } = useProfile()
+  const thresh = getThreshold(profile?.archetype_code)
   const [saving, setSaving] = useState(false)
 
   async function handleSubmitClick() {
     setSaving(true)
     try { await onSubmit() } finally { setSaving(false) }
   }
-  const active  = objectives.filter(o => o.status !== 'ignored')
-  const ignored = objectives.filter(o => o.status === 'ignored')
-  const avg     = active.length
+
+  const active   = objectives.filter(o => o.status !== 'ignored')
+  const ignored  = objectives.filter(o => o.status === 'ignored')
+  const avg      = active.length
     ? Math.round(active.reduce((s, o) => s + (o.score ?? 0), 0) / active.length)
     : 0
-  const color       = avg >= 80 ? 'var(--ok)' : avg >= 65 ? 'var(--warn)' : 'var(--err)'
-  const statusLabel = avg >= 80 ? 'GREEN' : avg >= 65 ? 'AMBER' : 'RED'
-  const statusText  = avg >= 80 ? 'high-ambition portfolio.'
-    : avg >= 65 ? 'solid portfolio with room to stretch.'
+
+  const color       = scoreColor(avg, thresh)
+  const statusLabel = avg >= thresh.green ? 'GREEN' : avg >= thresh.min ? 'AMBER' : 'RED'
+  const statusText  = avg >= thresh.green ? 'high-ambition portfolio.'
+    : avg >= thresh.min ? 'solid portfolio with room to stretch.'
     : 'portfolio needs strengthening before submission.'
 
-  function scoreLabel(s) {
-    return s >= 80 ? 'HIGH IMPACT' : s >= 65 ? 'MEDIUM' : 'LOW'
-  }
+  const weakObjs = active.filter(o => (o.score ?? 0) < thresh.min)
 
   return (
-    <Shell step={2}>
+    <Shell step={2} onSettings={onSettings} onManagerView={onManagerView}>
       <div style={{ maxWidth: 700, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* ── AI-Governed banner ── */}
+        <div style={rp.aiBanner}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ac)', letterSpacing: '0.06em' }}>⚡ AI-GOVERNED</span>
+          <span style={{ color: 'var(--border)' }}>·</span>
+          <span style={{ fontSize: 11, color: 'var(--tx2)' }}>Manager-Approved</span>
+          <span style={{ fontSize: 11, color: 'var(--tx2)', marginLeft: 'auto' }}>Model: claude-haiku-4-5-20251001</span>
+        </div>
 
         {/* ── Top header ── */}
         <div>
@@ -330,7 +463,7 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
           {/* Gauge + narrative */}
           <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              <ScoreGauge score={avg} size={130} />
+              <ScoreGauge score={avg} size={130} thresh={thresh} />
               <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--tx2)', textAlign: 'center', lineHeight: 1.4 }}>
                 BONUS<br/>POTENTIAL
               </span>
@@ -342,7 +475,6 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
             )}
           </div>
 
-          {/* Info box */}
           <div style={{ ...rp.infoBox, marginTop: 16 }}>
             <span style={{ fontWeight: 700, color: 'var(--tx)', fontSize: 12 }}>About this score (Year 1): </span>
             <span style={{ color: 'var(--tx2)', fontSize: 12 }}>
@@ -368,15 +500,13 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {active.map((obj) => {
               const sc    = obj.score ?? 0
-              const scCol = sc >= 80 ? 'var(--ok)' : sc >= 65 ? 'var(--warn)' : 'var(--err)'
+              const scCol = scoreColor(sc, thresh)
               const ss    = obj.sub_scores ?? {}
 
               return (
                 <div key={obj.id} style={rp.card}>
-
-                  {/* Top row: gauge + title + score badge */}
                   <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                    <ScoreGauge score={sc} size={56} />
+                    <ScoreGauge score={sc} size={56} thresh={thresh} />
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                         <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--tx)', lineHeight: 1.35, flex: 1 }}>
@@ -386,13 +516,12 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
                                       background: `${scCol}20`, border: `1px solid ${scCol}`,
                                       borderRadius: 6, padding: '5px 10px' }}>
                           <span style={{ fontSize: 17, fontWeight: 800, color: scCol, lineHeight: 1 }}>{sc}</span>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: scCol }}>{scoreLabel(sc)}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: scCol }}>{getScoreLabel(sc, thresh)}</span>
                         </div>
                       </div>
 
                       {obj.feedback && (
-                        <p style={{ fontSize: 12, fontStyle: 'italic', marginTop: 6, lineHeight: 1.4,
-                                    color: sc >= 80 ? 'var(--ok)' : sc >= 65 ? 'var(--warn)' : 'var(--err)' }}>
+                        <p style={{ fontSize: 12, fontStyle: 'italic', marginTop: 6, lineHeight: 1.4, color: scCol }}>
                           {obj.feedback}
                         </p>
                       )}
@@ -402,6 +531,8 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
                           WEIGHT {obj.weight}%
                         </span>
                         {obj.source === 'delfos' && <span style={rs.delfosBadge}>DELFOS</span>}
+                        {obj.type   === 'team'   && <span style={rs.teamBadge}>TEAM</span>}
+                        {obj.type   === 'learning' && <span style={rs.learnBadge}>LEARNING</span>}
                       </div>
 
                       {obj.linked_cascades?.length > 0 && (
@@ -413,15 +544,12 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
                     </div>
                   </div>
 
-                  {/* Sub-score bars */}
+                  {/* Sub-score bars — 5 dimensions */}
                   {Object.keys(ss).length > 0 && (
                     <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      {ss.role_fit      != null && <SubScoreBar label="Role Fit"          weight={25} value={ss.role_fit} />}
-                      {ss.impact        != null && <SubScoreBar label="Business Impact"   weight={20} value={ss.impact} />}
-                      {ss.relevance     != null && <SubScoreBar label="Cascade Alignment" weight={20} value={ss.relevance} />}
-                      {ss.ambition      != null && <SubScoreBar label="Ambition"          weight={15} value={ss.ambition} />}
-                      {ss.measurability != null && <SubScoreBar label="Measurability"     weight={15} value={ss.measurability} />}
-                      {ss.smart         != null && <SubScoreBar label="SMART Quality"     weight={5}  value={ss.smart} />}
+                      {SUB_SCORE_DIMS.map(dim => ss[dim.key] != null ? (
+                        <SubScoreBar key={dim.key} label={dim.label} weight={dim.weight} value={ss[dim.key]} />
+                      ) : null)}
                     </div>
                   )}
 
@@ -449,7 +577,7 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
                   )}
 
                   <div style={{ textAlign: 'right', marginTop: 10, paddingTop: 8,
-                                borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--tx2)', letterSpacing: '0.04em' }}>
+                                borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--tx2)' }}>
                     Overall Weight <span style={{ fontWeight: 700, color: scCol }}>{obj.weight}%</span>
                   </div>
                 </div>
@@ -457,6 +585,68 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
             })}
           </div>
         </div>
+
+        {/* ── Engine Suggestions (objectives below threshold) ── */}
+        {weakObjs.length > 0 && (
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: 'var(--err)',
+                        textTransform: 'uppercase', marginBottom: 10 }}>
+              ⚡ Engine Suggestions — Higher-Impact Alternatives
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {weakObjs.map(obj => {
+                const ss      = obj.sub_scores ?? {}
+                const weakDim = SUB_SCORE_DIMS
+                  .filter(d => ss[d.key] != null)
+                  .sort((a, b) => (ss[a.key] ?? 99) - (ss[b.key] ?? 99))[0]
+                return (
+                  <div key={obj.id} style={rp.suggCard}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--err)', letterSpacing: '0.08em' }}>
+                          REWRITE RECOMMENDED
+                        </span>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginTop: 2 }}>{obj.title}</p>
+                        {weakDim && (
+                          <p style={{ fontSize: 11, color: 'var(--tx2)', marginTop: 2 }}>
+                            Main gap: <strong style={{ color: 'var(--err)' }}>{weakDim.label}</strong> ({ss[weakDim.key]}/100)
+                          </p>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--err)', flexShrink: 0 }}>{obj.score}%</span>
+                    </div>
+                    {obj.coaching_tips?.length > 0 && (
+                      <div>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx2)', marginBottom: 4, letterSpacing: '0.08em' }}>
+                          SUGGESTED ACTIONS
+                        </p>
+                        {obj.coaching_tips.map((tip, j) => (
+                          <p key={j} style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 3 }}>→ {tip}</p>
+                        ))}
+                      </div>
+                    )}
+                    <button style={rp.backToRefineBtn} onClick={onBack}>← Go back to Refine to improve this</button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Ready to submit panel ── */}
+        {profile?.manager_full_name && (
+          <div style={rp.submitPanel}>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--tx)', marginBottom: 2 }}>Ready to submit for approval?</p>
+              <p style={{ fontSize: 12, color: 'var(--tx2)' }}>
+                Your {active.length} objective{active.length !== 1 ? 's' : ''} will be sent to{' '}
+                <strong style={{ color: 'var(--tx)' }}>{profile.manager_full_name}</strong> for review.
+                {ignored.length > 0 && ` ${ignored.length} ignored.`}
+              </p>
+            </div>
+            <span style={{ fontSize: 22, fontWeight: 800, color, flexShrink: 0 }}>{avg}%</span>
+          </div>
+        )}
 
         {/* ── Footer ── */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -479,24 +669,34 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit }) {
 }
 
 const rp = {
-  tabChip:      { display: 'inline-flex', alignItems: 'center', gap: 6,
-                  background: 'var(--card)', border: '1px solid var(--border)',
-                  borderRadius: 6, padding: '3px 10px', marginBottom: 4 },
-  infoBox:      { background: 'var(--card)', border: '1px solid var(--border)',
-                  borderRadius: 8, padding: '10px 14px' },
-  highlightBox: { background: 'transparent', border: '1px solid',
-                  borderRadius: 8, padding: '12px 16px' },
-  card:         { background: 'var(--card)', border: '1px solid var(--border)',
-                  borderRadius: 12, padding: '18px 20px' },
-  weightChip:   { fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-                  border: '1px solid', borderRadius: 4, padding: '3px 8px' },
-  sectionLabel: { fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--tx2)', marginBottom: 6 },
-  bulletText:   { fontSize: 12, color: 'var(--tx2)', lineHeight: 1.5, marginBottom: 4 },
-  backBtn:      { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14, cursor: 'pointer' },
-  downloadBtn:  { background: 'none', border: '1px solid var(--border)', color: 'var(--tx2)',
-                  borderRadius: 8, fontSize: 13, fontWeight: 500, padding: '9px 16px', cursor: 'pointer' },
-  submitBtn:    { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
-                  fontSize: 14, fontWeight: 600, padding: '10px 24px', cursor: 'pointer' },
+  aiBanner:      { display: 'flex', alignItems: 'center', gap: 8,
+                   background: 'rgba(99,91,255,0.08)', border: '1px solid rgba(99,91,255,0.2)',
+                   borderRadius: 8, padding: '7px 14px' },
+  tabChip:       { display: 'inline-flex', alignItems: 'center', gap: 6,
+                   background: 'var(--card)', border: '1px solid var(--border)',
+                   borderRadius: 6, padding: '3px 10px', marginBottom: 4 },
+  infoBox:       { background: 'var(--card)', border: '1px solid var(--border)',
+                   borderRadius: 8, padding: '10px 14px' },
+  highlightBox:  { background: 'transparent', border: '1px solid',
+                   borderRadius: 8, padding: '12px 16px' },
+  card:          { background: 'var(--card)', border: '1px solid var(--border)',
+                   borderRadius: 12, padding: '18px 20px' },
+  weightChip:    { fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+                   border: '1px solid', borderRadius: 4, padding: '3px 8px' },
+  sectionLabel:  { fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--tx2)', marginBottom: 6 },
+  bulletText:    { fontSize: 12, color: 'var(--tx2)', lineHeight: 1.5, marginBottom: 4 },
+  suggCard:      { background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.25)',
+                   borderRadius: 10, padding: '14px 16px' },
+  backToRefineBtn: { marginTop: 10, background: 'none', border: '1px solid var(--border)',
+                     color: 'var(--tx2)', borderRadius: 6, fontSize: 12, padding: '5px 12px', cursor: 'pointer' },
+  submitPanel:   { background: 'var(--card)', border: '1px solid var(--border)',
+                   borderRadius: 10, padding: '14px 18px',
+                   display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 },
+  backBtn:       { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14, cursor: 'pointer' },
+  downloadBtn:   { background: 'none', border: '1px solid var(--border)', color: 'var(--tx2)',
+                   borderRadius: 8, fontSize: 13, fontWeight: 500, padding: '9px 16px', cursor: 'pointer' },
+  submitBtn:     { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
+                   fontSize: 14, fontWeight: 600, padding: '10px 24px', cursor: 'pointer' },
 }
 
 // ── Cascade accordion ──────────────────────────────────────────────────────
@@ -532,9 +732,7 @@ function CascadeAccordion({ cascade, country_label }) {
                     {item.locked ? '🔒' : '✏'}
                   </span>
                   <span style={ca.itemText}>{item.text}</span>
-                  {item.weight_percent && (
-                    <span style={ca.weight}>{item.weight_percent}%</span>
-                  )}
+                  {item.weight_percent && <span style={ca.weight}>{item.weight_percent}%</span>}
                 </div>
               ))}
             </>
@@ -546,9 +744,7 @@ function CascadeAccordion({ cascade, country_label }) {
                 <div key={item.id} style={ca.item}>
                   <span style={{ color: 'var(--tx2)', fontSize: 10 }}>◉</span>
                   <span style={ca.itemText}>{item.text}</span>
-                  {item.weight_percent && (
-                    <span style={ca.weight}>{item.weight_percent}%</span>
-                  )}
+                  {item.weight_percent && <span style={ca.weight}>{item.weight_percent}%</span>}
                 </div>
               ))}
             </>
@@ -578,14 +774,14 @@ const ca = {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
-export default function ObjectiveDraft({ onNavigate }) {
+export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView }) {
   const { profile } = useProfile()
 
-  const [cascade,    setCascade]    = useState([])
-  const [objectives, setObjectives] = useState([
+  const [cascade,          setCascade]          = useState([])
+  const [objectives,       setObjectives]       = useState([
     { id: 1, type: 'performance', title: '', description: '', source: 'user', status: 'active' },
   ])
-  const [phase,            setPhase]            = useState('draft')  // draft | loading | refine | report
+  const [phase,            setPhase]            = useState('draft')
   const [loadCtx,          setLoadCtx]          = useState({ action: 'asking', elapsed: 0 })
   const [error,            setError]            = useState(null)
   const [portfolioSummary, setPortfolioSummary] = useState('')
@@ -669,16 +865,20 @@ export default function ObjectiveDraft({ onNavigate }) {
     setObjectives(p => p.filter(o => o.id !== id))
   }
 
-  if (phase === 'loading') return <LoadingScreen action={loadCtx.action} elapsed={loadCtx.elapsed} />
+  if (phase === 'loading') return (
+    <LoadingScreen action={loadCtx.action} elapsed={loadCtx.elapsed} onSettings={onSettings} onManagerView={onManagerView} />
+  )
 
   if (phase === 'refine') return (
     <RefineScreen
       objectives={objectives}
       cascade={cascade}
+      onSettings={onSettings}
+      onManagerView={onManagerView}
       onBack={() => setPhase('draft')}
       onIgnore={(id) => update(id, 'status', 'ignored')}
       onAcceptImproved={(id, improved) =>
-        setObjectives(p => p.map(o => o.id === id ? { ...o, ...improved, source: 'delfos' } : o))
+        setObjectives(p => p.map(o => o.id === id ? { ...o, ...improved } : o))
       }
       onRescored={(id, rescored) =>
         setObjectives(p => p.map(o => o.id === id ? { ...o, ...rescored } : o))
@@ -692,6 +892,7 @@ export default function ObjectiveDraft({ onNavigate }) {
     const ignored  = objectives.filter(o => o.status === 'ignored')
     const aiObjs   = objectives.filter(o => o.source === 'delfos')
     const manual   = objectives.filter(o => o.source !== 'delfos')
+    const improved = objectives.filter(o => o.was_improved)
     const avg      = active.length
       ? Math.round(active.reduce((s, o) => s + (o.score ?? 0), 0) / active.length)
       : 0
@@ -707,12 +908,13 @@ export default function ObjectiveDraft({ onNavigate }) {
           country_label:       profile.country_label ?? null,
           archetype_code:      profile.archetype_code ?? null,
           archetype_label:     profile.archetype_label ?? null,
-          manager_name:        profile.manager_name ?? null,
+          manager_name:        profile.manager_full_name ?? null,
           portfolio_score:     avg,
           portfolio_summary:   portfolioSummary || null,
           objectives_total:    objectives.length,
           objectives_ai:       aiObjs.length,
           objectives_manual:   manual.length,
+          objectives_improved: improved.length,
           objectives_ignored:  ignored.length,
         })
         .select('id')
@@ -756,18 +958,24 @@ export default function ObjectiveDraft({ onNavigate }) {
     <ReportScreen
       objectives={objectives}
       portfolioSummary={portfolioSummary}
+      onSettings={onSettings}
+      onManagerView={onManagerView}
       onBack={() => setPhase('refine')}
       onSubmit={handleSubmit}
     />
   )
 
-  const hasFilled = objectives.some(o => o.title.trim())
+  // ── Draft phase ──────────────────────────────────────────────────────────
+  const needsTeam = ['A', 'B'].includes(profile?.archetype_code)
+  const hasTeamObj = objectives.some(o => o.type === 'team' && o.title.trim())
+  const hasFilled  = objectives.some(o => o.title.trim())
+  const canScore   = hasFilled && (!needsTeam || hasTeamObj)
 
   return (
-    <Shell step={1}>
+    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView}>
       <div style={ds.page}>
 
-        {/* Info banner */}
+        {/* Bonus info banner */}
         <div style={ds.banner}>
           <span style={{ color: 'var(--warn)', fontSize: 14 }}>⚡</span>
           <div>
@@ -779,76 +987,99 @@ export default function ObjectiveDraft({ onNavigate }) {
           </div>
         </div>
 
-        {/* Step heading */}
         <p style={ds.stepBadge}>STEP 02</p>
         <h1 style={ds.heading}>Set Your Objectives</h1>
 
-        {/* Cascade */}
+        {/* Cascade accordion */}
         <CascadeAccordion cascade={cascade} country_label={profile.country_label} />
 
-        {/* Objective cards */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
-          {objectives.map((obj, i) => (
-            <div key={obj.id} style={ds.objCard}>
-              <div style={ds.objCardHead}>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={ds.objNumBadge}>OBJ {i + 1}</span>
-                  {obj.source === 'delfos' && <span style={rs.delfosBadge}>DELFOS</span>}
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  {['performance', 'learning'].map(t => (
-                    <button key={t} onClick={() => update(obj.id, 'type', t)}
-                      style={{
-                        ...ds.typeBtn,
-                        background: obj.type === t ? 'var(--ac)' : 'var(--card-2)',
-                        color:      obj.type === t ? '#fff'      : 'var(--tx2)',
-                      }}>
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
-                    </button>
-                  ))}
-                  {objectives.length > 1 && (
-                    <button onClick={() => remove(obj.id)} style={ds.removeBtn}>✕</button>
-                  )}
-                </div>
-              </div>
+        {/* Team objective required banner (A/B archetypes) */}
+        {needsTeam && !hasTeamObj && hasFilled && (
+          <div style={ds.teamGateBanner}>
+            <strong>Team objective required</strong> — Archetype{' '}
+            {profile.archetype_code} must include at least 1 Team objective before scoring.
+          </div>
+        )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div>
-                  <label style={ds.fieldLabel}>Title — be specific and measurable</label>
-                  <input style={ds.input}
-                    value={obj.title}
-                    onChange={e => update(obj.id, 'title', e.target.value)}
-                    placeholder="e.g. Reduce voluntary turnover from 14% to <10% by Q4" />
+        {/* Objective cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {objectives.map((obj, i) => {
+            const ph = PLACEHOLDERS[obj.type] ?? PLACEHOLDERS.performance
+            return (
+              <div key={obj.id} style={ds.objCard}>
+                <div style={ds.objCardHead}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span style={ds.objNumBadge}>OBJ {i + 1}</span>
+                    {obj.source === 'delfos' && <span style={rs.delfosBadge}>DELFOS</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {['performance', 'learning', 'team'].map(t => (
+                      <button key={t} onClick={() => update(obj.id, 'type', t)}
+                        style={{
+                          ...ds.typeBtn,
+                          background: obj.type === t
+                            ? (t === 'team' ? 'var(--err)' : t === 'learning' ? '#2563eb' : 'var(--ac)')
+                            : 'var(--card-2)',
+                          color: obj.type === t ? '#fff' : 'var(--tx2)',
+                        }}>
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </button>
+                    ))}
+                    {objectives.length > 1 && (
+                      <button onClick={() => remove(obj.id)} style={ds.removeBtn}>✕</button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label style={ds.fieldLabel}>Description, KRs &amp; Timeline</label>
-                  <textarea style={{ ...ds.input, minHeight: 80, resize: 'vertical' }}
-                    value={obj.description}
-                    onChange={e => update(obj.id, 'description', e.target.value)}
-                    placeholder="What metric moves? By when? What's the baseline?" />
+
+                {/* Type banners */}
+                {obj.type === 'learning' && (
+                  <div style={ds.learnBanner}>
+                    Learning objective — focus on skill acquisition and measurable competency growth.
+                  </div>
+                )}
+                {obj.type === 'team' && (
+                  <div style={ds.teamBanner}>
+                    Team objective — tracks people management outcomes. Required for Archetype A/B.
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div>
+                    <label style={ds.fieldLabel}>Title — be specific and measurable</label>
+                    <input style={ds.input}
+                      value={obj.title}
+                      onChange={e => update(obj.id, 'title', e.target.value)}
+                      placeholder={ph.title} />
+                  </div>
+                  <div>
+                    <label style={ds.fieldLabel}>Description, KRs &amp; Timeline</label>
+                    <textarea style={{ ...ds.input, minHeight: 80, resize: 'vertical' }}
+                      value={obj.description}
+                      onChange={e => update(obj.id, 'description', e.target.value)}
+                      placeholder={ph.description} />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
-        {/* Add objective */}
         <button style={ds.addBtn} onClick={addObjective}>+ Add Objective</button>
 
         {error && (
-          <p style={{ color: 'var(--err)', fontSize: 13, textAlign: 'center' }}
+          <p style={{ color: 'var(--err)', fontSize: 13, textAlign: 'center', cursor: 'pointer' }}
              onClick={() => setError(null)}>{error} (click to dismiss)</p>
         )}
 
-        {/* Footer */}
         <div style={ds.footer}>
           <button style={ds.backBtn} onClick={() => onNavigate('profile')}>← Back</button>
           <div style={{ display: 'flex', gap: 10 }}>
             <button style={ds.aiBtn} onClick={handleAskDelfos}>
               ✦ Ask Delfos for suggestions
             </button>
-            <button style={{ ...ds.scoreBtn, opacity: hasFilled ? 1 : 0.4 }}
-              disabled={!hasFilled} onClick={handleScore}>
+            <button style={{ ...ds.scoreBtn, opacity: canScore ? 1 : 0.4 }}
+              disabled={!canScore} onClick={handleScore}
+              title={needsTeam && !hasTeamObj ? 'Add a Team objective first' : undefined}>
               Score Objectives →
             </button>
           </div>
@@ -860,36 +1091,41 @@ export default function ObjectiveDraft({ onNavigate }) {
 }
 
 const ds = {
-  page:       { maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 },
-  banner:     { display: 'flex', gap: 10, background: 'rgba(240,165,0,0.08)',
-                border: '1px solid rgba(240,165,0,0.2)', borderRadius: 10, padding: '12px 16px',
-                alignItems: 'flex-start', fontSize: 13 },
-  stepBadge:  { fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--tx2)',
-                textTransform: 'uppercase', margin: '8px 0 4px' },
-  heading:    { fontSize: 26, fontWeight: 700, color: 'var(--tx)', marginBottom: 4 },
-  objCard:    { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12,
-                padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
-  objCardHead:{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  objNumBadge:{ background: 'rgba(99,91,255,0.2)', color: 'var(--ac)', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 4 },
-  typeBtn:    { fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 5,
-                border: 'none', cursor: 'pointer' },
-  removeBtn:  { background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer',
-                fontSize: 12, padding: '4px 6px' },
-  fieldLabel: { display: 'block', fontSize: 11, color: 'var(--tx2)', marginBottom: 5 },
-  input:      { width: '100%', background: 'var(--card-2)', border: '1px solid var(--border)',
-                borderRadius: 8, color: 'var(--tx)', fontSize: 14, padding: '9px 12px',
-                outline: 'none', lineHeight: 1.5 },
-  addBtn:     { background: 'none', border: '1px dashed var(--border)', color: 'var(--tx2)',
-                borderRadius: 8, padding: '10px 0', cursor: 'pointer', fontSize: 13,
-                fontWeight: 500, width: '100%' },
-  footer:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 8 },
-  backBtn:    { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14,
-                cursor: 'pointer' },
-  aiBtn:      { background: 'rgba(99,91,255,0.15)', border: '1px solid rgba(99,91,255,0.35)',
-                color: 'var(--ac)', fontSize: 13, fontWeight: 500, padding: '9px 16px',
-                borderRadius: 8, cursor: 'pointer' },
-  scoreBtn:   { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
-                fontSize: 14, fontWeight: 600, padding: '9px 20px', cursor: 'pointer' },
+  page:          { maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 },
+  banner:        { display: 'flex', gap: 10, background: 'rgba(240,165,0,0.08)',
+                   border: '1px solid rgba(240,165,0,0.2)', borderRadius: 10, padding: '12px 16px',
+                   alignItems: 'flex-start', fontSize: 13 },
+  teamGateBanner:{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                   borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--err)' },
+  stepBadge:     { fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--tx2)',
+                   textTransform: 'uppercase', margin: '8px 0 4px' },
+  heading:       { fontSize: 26, fontWeight: 700, color: 'var(--tx)', marginBottom: 4 },
+  objCard:       { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12,
+                   padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
+  objCardHead:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  objNumBadge:   { background: 'rgba(99,91,255,0.2)', color: 'var(--ac)', fontSize: 10, fontWeight: 700,
+                   letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 4 },
+  typeBtn:       { fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 5,
+                   border: 'none', cursor: 'pointer' },
+  removeBtn:     { background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer',
+                   fontSize: 12, padding: '4px 6px' },
+  learnBanner:   { background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)',
+                   borderRadius: 6, padding: '7px 11px', fontSize: 12, color: '#60a5fa' },
+  teamBanner:    { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                   borderRadius: 6, padding: '7px 11px', fontSize: 12, color: 'var(--err)' },
+  fieldLabel:    { display: 'block', fontSize: 11, color: 'var(--tx2)', marginBottom: 5 },
+  input:         { width: '100%', background: 'var(--card-2)', border: '1px solid var(--border)',
+                   borderRadius: 8, color: 'var(--tx)', fontSize: 14, padding: '9px 12px',
+                   outline: 'none', lineHeight: 1.5 },
+  addBtn:        { background: 'none', border: '1px dashed var(--border)', color: 'var(--tx2)',
+                   borderRadius: 8, padding: '10px 0', cursor: 'pointer', fontSize: 13,
+                   fontWeight: 500, width: '100%' },
+  footer:        { display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                   paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 8 },
+  backBtn:       { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14, cursor: 'pointer' },
+  aiBtn:         { background: 'rgba(99,91,255,0.15)', border: '1px solid rgba(99,91,255,0.35)',
+                   color: 'var(--ac)', fontSize: 13, fontWeight: 500, padding: '9px 16px',
+                   borderRadius: 8, cursor: 'pointer' },
+  scoreBtn:      { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
+                   fontSize: 14, fontWeight: 600, padding: '9px 20px', cursor: 'pointer' },
 }
