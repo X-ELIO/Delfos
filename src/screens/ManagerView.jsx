@@ -36,8 +36,16 @@ export default function ManagerView({ onEmployeeView, onManagerView, onCoverageV
 
   async function load() {
     setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: self } = await supabase
+      .from('org_chart').select('full_name').eq('email', user?.email ?? '').maybeSingle()
+
+    if (!self?.full_name) { setLoading(false); return }
+
     const [{ data: subs }, { data: objs }] = await Promise.all([
-      supabase.from('objective_submissions').select('*').order('submitted_at', { ascending: false }),
+      supabase.from('objective_submissions').select('*')
+        .eq('manager_name', self.full_name)
+        .order('submitted_at', { ascending: false }),
       supabase.from('submitted_objectives').select('*'),
     ])
     setSubmissions(subs ?? [])
