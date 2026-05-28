@@ -28,8 +28,12 @@
   --err:  #f47171;
 
   /* Additional Eli semantic */
-  --blue:   #6aa3f5;
-  --purple: #b692f6;
+  --blue:        #6aa3f5;
+  --purple:      #b692f6;
+  --ai-soft:     rgba(182, 146, 246, 0.1);
+  --ai-border:   rgba(182, 146, 246, 0.25);
+  --blue-soft:   rgba(106, 163, 245, 0.1);
+  --blue-border: rgba(106, 163, 245, 0.25);
 
   /* Fonts */
   --font-sans:    'Geist', system-ui, -apple-system, sans-serif;
@@ -66,8 +70,12 @@
   --warn: #b45309;
   --err:  #c84444;
 
-  --blue:   #2c6fd9;
-  --purple: #7c52d3;
+  --blue:        #2c6fd9;
+  --purple:      #7c52d3;
+  --ai-soft:     rgba(124, 82, 211, 0.1);
+  --ai-border:   rgba(124, 82, 211, 0.25);
+  --blue-soft:   rgba(44, 111, 217, 0.1);
+  --blue-border: rgba(44, 111, 217, 0.25);
 }
 
 /* ── Reset ───────────────────────────────────────────────────────────────── */
@@ -118,6 +126,24 @@ select option { background: var(--card-2); color: var(--tx); }
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
+
+/* ── Form focus rings ────────────────────────────────────────────────────── */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ac);
+  border-color: var(--ac) !important;
+}
+
+/* ── Button interactions ─────────────────────────────────────────────────── */
+button {
+  transition: opacity 0.15s, transform 0.1s;
+}
+button:hover:not(:disabled) {
+  opacity: 0.85;
+}
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
 
 /* ── Animations ──────────────────────────────────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg); } }

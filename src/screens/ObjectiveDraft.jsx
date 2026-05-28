@@ -79,7 +79,22 @@ function LoadingScreen({ action, elapsed, onSettings, onManagerView, onCoverageV
     <Shell step={1} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
                     justifyContent: 'center', height: '100%', gap: 20, textAlign: 'center' }}>
-        <div style={ls.spinner} />
+        <div style={{ position: 'relative', width: 56, height: 56 }}>
+          <svg width="56" height="56" style={{ position: 'absolute', inset: 0, animation: 'spin 1.2s linear infinite' }}>
+            <circle cx="28" cy="28" r="23" fill="none" stroke="var(--border-mid)" strokeWidth="3" />
+            <circle cx="28" cy="28" r="23" fill="none" stroke="var(--ac)" strokeWidth="3"
+              strokeDasharray="38 106" strokeLinecap="round" />
+          </svg>
+          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 10,
+              background: 'linear-gradient(135deg, var(--ac), var(--ac2))',
+              display: 'grid', placeItems: 'center',
+              color: '#fff', fontFamily: 'var(--font-display)', fontStyle: 'italic',
+              fontWeight: 700, fontSize: 18,
+            }}>D</div>
+          </div>
+        </div>
         <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--tx)' }}>{title}</p>
         {msg && <p style={{ fontSize: 13, color: 'var(--tx2)', maxWidth: 420 }}>{msg}</p>}
       </div>
@@ -87,14 +102,7 @@ function LoadingScreen({ action, elapsed, onSettings, onManagerView, onCoverageV
   )
 }
 
-const ls = {
-  spinner: {
-    width: 48, height: 48, borderRadius: '50%',
-    border: '3px solid var(--card-2)',
-    borderTopColor: 'var(--ac)',
-    animation: 'spin 0.9s linear infinite',
-  },
-}
+const ls = {}
 
 // ── Refine screen ──────────────────────────────────────────────────────────
 function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImproved, onRescored, cascade, onSettings, onManagerView, onCoverageView }) {
@@ -174,7 +182,7 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
           <div>
-            <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--tx)', marginBottom: 6 }}>Refine your portfolio</h1>
+            <h1 style={{ fontSize: 26, fontWeight: 400, color: 'var(--tx)', marginBottom: 6 }}>Refine your portfolio</h1>
             <p style={{ fontSize: 13, color: 'var(--tx2)' }}>
               Accept, edit, or ask Delfos to improve quality. The aggregate updates as you go.
             </p>
@@ -182,7 +190,10 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--tx2)', marginBottom: 2 }}>PORTFOLIO AGGREGATE</p>
             <p style={{ fontSize: 36, fontWeight: 800, color, lineHeight: 1 }}>{avg}%</p>
-            <p style={{ fontSize: 11, color: 'var(--tx2)' }}>{active.length} of {objectives.length} active</p>
+            <div style={{ width: 80, height: 4, background: 'var(--card-2)', borderRadius: 2, marginTop: 5, marginLeft: 'auto' }}>
+              <div style={{ width: `${avg}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.5s ease-out' }} />
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--tx2)', marginTop: 4 }}>{active.length} of {objectives.length} active</p>
           </div>
         </div>
 
@@ -282,7 +293,7 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
 
                         {proposals[obj.id] && (
                           <div style={rs.proposal}>
-                            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--ac)', marginBottom: 6, letterSpacing: '0.08em' }}>DELFOS SUGGESTS</p>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--purple)', marginBottom: 6, letterSpacing: '0.08em' }}>DELFOS SUGGESTS</p>
                             <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)', marginBottom: 4 }}>{proposals[obj.id].title}</p>
                             <p style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 6 }}>{proposals[obj.id].description}</p>
                             {proposals[obj.id].key_results?.map((kr, j) => (
@@ -328,8 +339,8 @@ const rs = {
   editInput:   { background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 8,
                  color: 'var(--tx)', fontSize: 14, padding: '9px 12px', outline: 'none',
                  lineHeight: 1.5, width: '100%' },
-  btnAi:       { background: 'rgba(99,91,255,0.15)', border: '1px solid rgba(99,91,255,0.3)',
-                 color: 'var(--ac)', fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
+  btnAi:       { background: 'var(--ai-soft)', border: '1px solid var(--ai-border)',
+                 color: 'var(--purple)', fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
   btnEdit:     { background: 'none', border: '1px solid var(--border)', color: 'var(--tx2)',
                  fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
   btnIgnore:   { background: 'none', border: 'none', color: 'var(--err)', fontSize: 12,
@@ -337,7 +348,7 @@ const rs = {
   back:        { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14, cursor: 'pointer' },
   submit:      { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
                  fontSize: 14, fontWeight: 600, padding: '10px 24px', cursor: 'pointer' },
-  proposal:    { background: 'rgba(99,91,255,0.08)', border: '1px solid rgba(99,91,255,0.25)',
+  proposal:    { background: 'var(--ai-soft)', border: '1px solid var(--ai-border)',
                  borderRadius: 8, padding: '12px 14px' },
   btnAccept:   { marginTop: 10, background: 'var(--ok)', color: '#fff', border: 'none',
                  borderRadius: 6, fontSize: 12, fontWeight: 600, padding: '6px 14px', cursor: 'pointer' },
@@ -353,12 +364,21 @@ function ScoreGauge({ score, size = 120, thresh }) {
     ? scoreColor(score, thresh)
     : (score >= 80 ? 'var(--ok)' : score >= 65 ? 'var(--warn)' : 'var(--err)')
   const cx   = size / 2
+
+  const [animated, setAnimated] = useState(false)
+  useEffect(() => {
+    setAnimated(false)
+    const id = requestAnimationFrame(() => setAnimated(true))
+    return () => cancelAnimationFrame(id)
+  }, [score])
+
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
         <circle cx={cx} cy={cx} r={r} fill="none" stroke="var(--card-2)" strokeWidth={sw} />
         <circle cx={cx} cy={cx} r={r} fill="none" stroke={col} strokeWidth={sw}
-          strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" />
+          strokeDasharray={circ} strokeDashoffset={animated ? off : circ} strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 0.7s cubic-bezier(0.4, 0, 0.2, 1)' }} />
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span style={{ fontSize: size * 0.27, fontWeight: 800, color: col, lineHeight: 1 }}>{score}</span>
@@ -381,8 +401,8 @@ function SubScoreBar({ label, weight, value }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ fontSize: 11, color: 'var(--tx2)', width: 170, flexShrink: 0 }}>{label} ({weight}%)</span>
-      <div style={{ flex: 1, height: 3, background: 'var(--card-2)', borderRadius: 2 }}>
-        <div style={{ width: `${Math.min(value ?? 0, 100)}%`, height: '100%', background: col, borderRadius: 2 }} />
+      <div style={{ flex: 1, height: 5, background: 'var(--card-2)', borderRadius: 3 }}>
+        <div style={{ width: `${Math.min(value ?? 0, 100)}%`, height: '100%', background: col, borderRadius: 3 }} />
       </div>
       <span style={{ fontSize: 11, fontWeight: 700, color: col, width: 22, textAlign: 'right' }}>{value}</span>
     </div>
@@ -452,7 +472,7 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettin
 
         {/* ── AI-Governed banner ── */}
         <div style={rp.aiBanner}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ac)', letterSpacing: '0.06em' }}>⚡ AI-GOVERNED</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--purple)', letterSpacing: '0.06em' }}>⚡ AI-GOVERNED</span>
           <span style={{ color: 'var(--border)' }}>·</span>
           <span style={{ fontSize: 11, color: 'var(--tx2)' }}>Manager-Approved</span>
           <span style={{ fontSize: 11, color: 'var(--tx2)', marginLeft: 'auto' }}>Model: claude-haiku-4-5-20251001</span>
@@ -464,7 +484,7 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettin
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block' }} />
             <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--tx2)' }}>BONUS POTENTIAL</span>
           </div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--tx)', margin: '10px 0 8px' }}>Objectives Quality Analysis</h1>
+          <h1 style={{ fontSize: 26, fontWeight: 400, color: 'var(--tx)', margin: '10px 0 8px' }}>Objectives Quality Analysis</h1>
 
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
                         border: `1px solid ${color}`, borderRadius: 8, padding: '5px 14px', marginBottom: 8 }}>
@@ -688,7 +708,7 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettin
 
 const rp = {
   aiBanner:      { display: 'flex', alignItems: 'center', gap: 8,
-                   background: 'rgba(99,91,255,0.08)', border: '1px solid rgba(99,91,255,0.2)',
+                   background: 'var(--ai-soft)', border: '1px solid var(--ai-border)',
                    borderRadius: 8, padding: '7px 14px' },
   tabChip:       { display: 'inline-flex', alignItems: 'center', gap: 6,
                    background: 'var(--card)', border: '1px solid var(--border)',
@@ -1195,18 +1215,18 @@ const ds = {
                        borderRadius: 8, padding: '12px 14px', fontSize: 13, color: 'var(--err)' },
   stepBadge:     { fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--tx2)',
                    textTransform: 'uppercase', margin: '8px 0 4px' },
-  heading:       { fontSize: 26, fontWeight: 700, color: 'var(--tx)', marginBottom: 4 },
+  heading:       { fontSize: 26, fontWeight: 400, color: 'var(--tx)', marginBottom: 4 },
   objCard:       { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12,
                    padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
   objCardHead:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  objNumBadge:   { background: 'rgba(99,91,255,0.2)', color: 'var(--ac)', fontSize: 10, fontWeight: 700,
+  objNumBadge:   { background: 'var(--card-2)', color: 'var(--tx2)', fontSize: 10, fontWeight: 700,
                    letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 4 },
   typeBtn:       { fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 5,
                    border: 'none', cursor: 'pointer' },
   removeBtn:     { background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer',
                    fontSize: 12, padding: '4px 6px' },
-  learnBanner:   { background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)',
-                   borderRadius: 6, padding: '7px 11px', fontSize: 12, color: '#60a5fa' },
+  learnBanner:   { background: 'var(--blue-soft)', border: '1px solid var(--blue-border)',
+                   borderRadius: 6, padding: '7px 11px', fontSize: 12, color: 'var(--blue)' },
   teamBanner:    { background: 'var(--ac-soft)', border: '1px solid var(--border-mid)',
                    borderRadius: 6, padding: '7px 11px', fontSize: 12, color: 'var(--purple)' },
   fieldLabel:    { display: 'block', fontSize: 11, color: 'var(--tx2)', marginBottom: 5 },
@@ -1219,8 +1239,8 @@ const ds = {
   footer:        { display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                    paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 8 },
   backBtn:       { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14, cursor: 'pointer' },
-  aiBtn:         { background: 'rgba(99,91,255,0.15)', border: '1px solid rgba(99,91,255,0.35)',
-                   color: 'var(--ac)', fontSize: 13, fontWeight: 500, padding: '9px 16px',
+  aiBtn:         { background: 'var(--ai-soft)', border: '1px solid var(--ai-border)',
+                   color: 'var(--purple)', fontSize: 13, fontWeight: 500, padding: '9px 16px',
                    borderRadius: 8, cursor: 'pointer' },
   scoreBtn:      { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
                    fontSize: 14, fontWeight: 600, padding: '9px 20px', cursor: 'pointer' },

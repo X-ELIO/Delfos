@@ -179,7 +179,7 @@ export default function ProfileSetup({ onManagerView, onCoverageView }) {
                     style={{
                       ...s.archetypeCard,
                       border: `1px solid ${active ? 'var(--ac)' : 'var(--border)'}`,
-                      background: active ? 'rgba(99,91,255,0.1)' : 'var(--card)',
+                      background: active ? 'var(--ac-soft)' : 'var(--card)',
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                       <span style={{ fontSize: 16, color: 'var(--ac)' }}>{meta.icon}</span>
@@ -256,7 +256,7 @@ const s = {
   page:  { maxWidth: 600, margin: '0 auto' },
   stepBadge: { fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--tx2)',
                textTransform: 'uppercase', marginBottom: 10 },
-  heading:   { fontSize: 28, fontWeight: 700, color: 'var(--tx)', marginBottom: 8, lineHeight: 1.2 },
+  heading:   { fontSize: 28, fontWeight: 400, color: 'var(--tx)', marginBottom: 8, lineHeight: 1.1 },
   sub:       { fontSize: 13, color: 'var(--tx2)', marginBottom: 28, lineHeight: 1.6 },
   form:      { display: 'flex', flexDirection: 'column', gap: 20 },
   input:     { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
