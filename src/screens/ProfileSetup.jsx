@@ -71,11 +71,32 @@ export default function ProfileSetup({ onEmployeeView, onManagerView, onCoverage
 
   useEffect(() => {
     async function load() {
-      const [{ data: countries }, { data: managers }] = await Promise.all([
+      const userEmail = session?.user?.email
+      const [{ data: countries }, { data: managers }, { data: orgSelf }] = await Promise.all([
         supabase.from('countries').select('code, label').order('label'),
-        supabase.from('users').select('id, full_name, email').eq('is_manager', true).order('full_name'),
+        supabase.from('org_chart').select('id, full_name, email').gt('direct_reports', 0).order('full_name'),
+        userEmail
+          ? supabase.from('org_chart').select('full_name,job_title,department,country_code,manager_email').eq('email', userEmail).maybeSingle()
+          : Promise.resolve({ data: null }),
       ])
-      setRef({ countries: countries ?? [], managers: managers ?? [] })
+      const managerList = managers ?? []
+      setRef({ countries: countries ?? [], managers: managerList })
+      // Auto-fill only on first login (no existing profile, no saved draft)
+      if (orgSelf && !existingProfile) {
+        try {
+          if (!localStorage.getItem(DRAFT_KEY)) {
+            const matchedManager = managerList.find(m => m.email === orgSelf.manager_email)
+            setForm(f => ({
+              ...f,
+              full_name:    f.full_name    || orgSelf.full_name    || '',
+              job_title:    f.job_title    || orgSelf.job_title    || '',
+              department:   f.department   || orgSelf.department   || '',
+              country_code: f.country_code || orgSelf.country_code || '',
+              manager_id:   f.manager_id   || matchedManager?.id   || '',
+            }))
+          }
+        } catch (_) {}
+      }
       setLoading(false)
     }
     load()
