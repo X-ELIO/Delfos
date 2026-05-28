@@ -81,21 +81,18 @@ export default function ProfileSetup({ onEmployeeView, onManagerView, onCoverage
       ])
       const managerList = managers ?? []
       setRef({ countries: countries ?? [], managers: managerList })
-      // Auto-fill only on first login (no existing profile, no saved draft)
-      if (orgSelf && !existingProfile) {
-        try {
-          if (!localStorage.getItem(DRAFT_KEY)) {
-            const matchedManager = managerList.find(m => m.email === orgSelf.manager_email)
-            setForm(f => ({
-              ...f,
-              full_name:    f.full_name    || orgSelf.full_name    || '',
-              job_title:    f.job_title    || orgSelf.job_title    || '',
-              department:   f.department   || orgSelf.department   || '',
-              country_code: f.country_code || orgSelf.country_code || '',
-              manager_id:   f.manager_id   || matchedManager?.id   || '',
-            }))
-          }
-        } catch (_) {}
+      // org_chart is always the source of truth for identity fields
+      if (orgSelf) {
+        const matchedManager = managerList.find(m => m.email === orgSelf.manager_email)
+        setForm(f => ({
+          ...f,
+          full_name:    orgSelf.full_name    || f.full_name,
+          job_title:    orgSelf.job_title    || f.job_title,
+          department:   orgSelf.department   || f.department,
+          country_code: orgSelf.country_code || f.country_code,
+          manager_id:   matchedManager?.id   || f.manager_id,
+        }))
+        try { localStorage.removeItem(DRAFT_KEY) } catch (_) {}
       }
       setLoading(false)
     }
