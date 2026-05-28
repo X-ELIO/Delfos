@@ -155,20 +155,19 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session ?? null)
-      if (session?.user?.email) checkCoverageAccess(session.user.email)
+      if (session) checkCoverageAccess()
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setSession(session ?? null)
-      if (session?.user?.email) checkCoverageAccess(session.user.email)
+      if (session) checkCoverageAccess()
       else setCanAccessCoverage(false)
     })
     return () => subscription.unsubscribe()
   }, [])
 
-  async function checkCoverageAccess(email) {
-    const { data } = await supabase
-      .from('org_chart').select('is_coverage_admin').eq('email', email).maybeSingle()
-    setCanAccessCoverage(data?.is_coverage_admin === true)
+  async function checkCoverageAccess() {
+    const { data } = await supabase.rpc('is_coverage_admin')
+    setCanAccessCoverage(data === true)
   }
 
   if (session === undefined) return null
