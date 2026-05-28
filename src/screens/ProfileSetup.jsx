@@ -36,7 +36,7 @@ const PEOPLE_KPIS = [
     target: 'Take appropriate measures — diverse slates, sourcing network expansion, female talent pipeline reinforcement. Target: improve overall gender balance by 2–4 pp by Q4 vs Jan baseline, measured at function/cohort level not per decision, not per hire.' },
 ]
 
-export default function ProfileSetup({ onManagerView, onCoverageView, onLogout, session }) {
+export default function ProfileSetup({ onManagerView, onCoverageView, onLogout, onSaved, session, existingProfile }) {
   const { saveProfile } = useProfile()
 
   const [ref, setRef]   = useState({ countries: [], managers: [] })
@@ -49,10 +49,23 @@ export default function ProfileSetup({ onManagerView, onCoverageView, onLogout, 
     || ''
 
   const [form, setForm] = useState(() => {
+    // 1. localStorage draft takes priority (user was mid-edit)
     try {
       const saved = localStorage.getItem(DRAFT_KEY)
       if (saved) return JSON.parse(saved)
     } catch (_) {}
+    // 2. existing profile (coming back from objectives)
+    if (existingProfile) return {
+      full_name:          existingProfile.full_name ?? azureName,
+      job_title:          existingProfile.job_title ?? '',
+      department:         existingProfile.department ?? '',
+      manager_id:         existingProfile.manager_id ?? '',
+      country_code:       existingProfile.country_code ?? '',
+      country_other:      existingProfile.country_code === 'other' ? (existingProfile.country_label ?? '') : '',
+      archetype_code:     existingProfile.archetype_code ?? '',
+      current_priorities: existingProfile.current_priorities ?? '',
+    }
+    // 3. fresh start
     return { full_name: azureName, job_title: '', department: '', manager_id: '', country_code: '', country_other: '', archetype_code: '', current_priorities: '' }
   })
 
@@ -84,6 +97,7 @@ export default function ProfileSetup({ onManagerView, onCoverageView, onLogout, 
     const countryCode  = form.country_code === 'other' ? 'other' : (country?.code ?? null)
     const countryLabel = form.country_code === 'other' ? (form.country_other.trim() || 'Other') : (country?.label ?? null)
     try { localStorage.removeItem(DRAFT_KEY) } catch (_) {}
+    onSaved?.()
     saveProfile({
       full_name:         form.full_name.trim(),
       job_title:         form.job_title.trim(),

@@ -192,7 +192,7 @@ export default function CoverageView({ onBack, onManagerView }) {
   }, {})
 
   return (
-    <Shell step={0} onManagerView={onManagerView}>
+    <Shell step={0} onBack={onBack} onManagerView={onManagerView}>
       <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* Header */}

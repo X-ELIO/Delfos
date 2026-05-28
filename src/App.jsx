@@ -94,9 +94,10 @@ function Submitted({ objectives }) {
 
 // ── Authenticated router ───────────────────────────────────────────────────
 function Router({ onLogout, session }) {
-  const { profile, clearProfile } = useProfile()
-  const [screen,  setScreen]  = useState('objectives')
-  const [payload, setPayload] = useState(null)
+  const { profile, saveProfile, clearProfile } = useProfile()
+  const [screen,         setScreen]         = useState('objectives')
+  const [payload,        setPayload]        = useState(null)
+  const [editingProfile, setEditingProfile] = useState(false)
 
   const goSettings   = () => setScreen('settings')
   const goManager    = () => setScreen('manager')
@@ -112,12 +113,14 @@ function Router({ onLogout, session }) {
   if (screen === 'manager')  return <ManagerView onBack={goObjectives} onCoverageView={goCoverage} />
   if (screen === 'coverage') return <CoverageView onBack={goObjectives} onManagerView={goManager} />
 
-  if (!profile) return (
+  if (!profile || editingProfile) return (
     <ProfileSetup
       session={session}
+      existingProfile={profile}
       onManagerView={goManager}
       onCoverageView={goCoverage}
       onLogout={handleLogout}
+      onSaved={() => setEditingProfile(false)}
     />
   )
 
@@ -125,7 +128,7 @@ function Router({ onLogout, session }) {
     return (
       <ObjectiveDraft
         onNavigate={(to, data = {}) => {
-          if (to === 'profile') { clearProfile(); return }
+          if (to === 'profile') { setEditingProfile(true); return }
           setPayload(data)
           setScreen(to)
         }}

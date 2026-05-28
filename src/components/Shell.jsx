@@ -27,18 +27,27 @@ function ThemeToggle() {
   )
 }
 
-export default function Shell({ children, step = 0, bonusChip = null, onSettings = null, onManagerView = null, onCoverageView = null, onLogout = null }) {
+export default function Shell({ children, step = 0, bonusChip = null, onBack = null, onSettings = null, onManagerView = null, onCoverageView = null, onLogout = null }) {
   return (
     <div style={s.root}>
       <div style={s.body}>
         {/* Top bar */}
         <header style={s.topbar}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {onBack && (
+              <button onClick={onBack} style={s.backBtn} title="Back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+                  <path d="M19 12H5M12 5l-7 7 7 7" />
+                </svg>
+              </button>
+            )}
           <div style={s.brand}>
             <div style={s.brandMark}>D</div>
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
               <span style={s.brandName}>DELFOS</span>
               <span style={s.brandSub}>V03.1.0</span>
             </div>
+          </div>
           </div>
 
           <div style={s.topRight}>
@@ -160,6 +169,9 @@ const s = {
   gearBtn:    { background: 'none', border: '1px solid var(--border-mid)', color: 'var(--tx2)',
                fontSize: 14, cursor: 'pointer', padding: '4px 7px', borderRadius: 7,
                lineHeight: 1, transition: 'color 0.15s' },
+  backBtn:    { background: 'none', border: '1px solid var(--border-mid)', color: 'var(--tx2)',
+               cursor: 'pointer', padding: '5px 7px', borderRadius: 7,
+               display: 'flex', alignItems: 'center', transition: 'color 0.15s' },
   signOutBtn: { background: 'none', border: '1px solid var(--border-mid)', color: 'var(--tx2)',
                fontSize: 14, cursor: 'pointer', padding: '4px 7px', borderRadius: 7,
                lineHeight: 1, transition: 'color 0.15s' },

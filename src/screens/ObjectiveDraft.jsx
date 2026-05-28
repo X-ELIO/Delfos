@@ -177,7 +177,7 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
   const color  = scoreColor(avg, thresh)
 
   return (
-    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
+    <Shell step={1} onBack={onBack} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
@@ -467,7 +467,7 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettin
   const weakObjs = active.filter(o => (o.score ?? 0) < thresh.min)
 
   return (
-    <Shell step={2} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
+    <Shell step={2} onBack={onBack} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
       <div style={{ maxWidth: 700, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── AI-Governed banner ── */}
@@ -1031,7 +1031,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
   const canScore      = hasFilled && (!needsTeam || hasTeamObj) && kpiViolations.length === 0
 
   return (
-    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
+    <Shell step={1} onBack={() => onNavigate('profile')} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
       <div style={ds.page}>
 
         {/* Bonus info banner */}

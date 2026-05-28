@@ -65,7 +65,7 @@ const MEASUREMENT_ALLOWLIST = [
 
 export default function Settings({ onBack }) {
   return (
-    <Shell step={0}>
+    <Shell step={0} onBack={onBack}>
       <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
         {/* Header */}
