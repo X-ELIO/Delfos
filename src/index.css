@@ -1,37 +1,123 @@
+/* ── Eli design system tokens (dark default) ─────────────────────────────── */
 :root {
-  --bg:     #0a0b0f;
-  --card:   #13151e;
-  --card-2: #1a1d28;
-  --ac:     #635bff;
-  --ac2:    #4d47cc;
-  --tx:     #e8e8ee;
-  --tx2:    #7e8096;
-  --ok:     #2bb47c;
-  --warn:   #f0a500;
-  --err:    #ff4d4d;
-  --border: rgba(255,255,255,0.07);
+  /* Surfaces */
+  --bg:     #0a0a0b;
+  --card:   #0f0f10;
+  --card-2: #16161a;
+  --card-3: #1d1d22;
+
+  /* Borders */
+  --border:       #1e1e24;
+  --border-mid:   #2a2a32;
+  --border-strong:#3a3a44;
+
+  /* Text */
+  --tx:  #fafafa;
+  --tx2: #71717a;
+  --tx3: #a1a1aa;
+
+  /* Accent — solar gold (dark) */
+  --ac:        #f5c842;
+  --ac2:       #d9a318;
+  --ac-glow:   rgba(245, 200, 66, 0.12);
+  --ac-soft:   rgba(245, 200, 66, 0.07);
+
+  /* Semantic */
+  --ok:   #5cd28b;
+  --warn: #f0a500;
+  --err:  #f47171;
+
+  /* Additional Eli semantic */
+  --blue:   #6aa3f5;
+  --purple: #b692f6;
+
+  /* Fonts */
+  --font-sans:    'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono:    'Geist Mono', ui-monospace, monospace;
+  --font-display: 'Instrument Serif', Georgia, serif;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius:    10px;
+  --radius-lg: 14px;
 }
 
+/* ── Light theme (X-elio blue) ──────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:     #f1f5fb;
+  --card:   #ffffff;
+  --card-2: #e6edf7;
+  --card-3: #d8e2f1;
+
+  --border:       #dde6f3;
+  --border-mid:   #c5d2e6;
+  --border-strong:#9aaecb;
+
+  --tx:  #0f172a;
+  --tx2: #7a8aa5;
+  --tx3: #51607a;
+
+  --ac:        #1f5fc7;
+  --ac2:       #154999;
+  --ac-glow:   rgba(31, 95, 199, 0.14);
+  --ac-soft:   rgba(31, 95, 199, 0.07);
+
+  --ok:   #2f9956;
+  --warn: #b45309;
+  --err:  #c84444;
+
+  --blue:   #2c6fd9;
+  --purple: #7c52d3;
+}
+
+/* ── Reset ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #root { height: 100%; }
 
+/* ── Body ────────────────────────────────────────────────────────────────── */
 body {
   background:
-    radial-gradient(ellipse 70% 55% at 12% 92%, rgba(99,91,255,0.09) 0%, transparent 100%),
+    radial-gradient(ellipse 60% 50% at 10% 95%, var(--ac-soft) 0%, transparent 100%),
     var(--bg);
   color: var(--tx);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.2s, color 0.2s;
 }
 
-input, select, textarea, button { font-family: inherit; font-size: inherit; }
+[data-theme="light"] body {
+  background: var(--bg);
+}
+
+/* ── Typography ──────────────────────────────────────────────────────────── */
+h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+/* ── Form elements ───────────────────────────────────────────────────────── */
+input, select, textarea, button {
+  font-family: var(--font-sans);
+  font-size: inherit;
+}
 
 select option { background: var(--card-2); color: var(--tx); }
 
-::-webkit-scrollbar { width: 6px; }
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--card-2); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
 
+/* ── Animations ──────────────────────────────────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg); } }

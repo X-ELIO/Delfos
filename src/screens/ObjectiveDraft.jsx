@@ -314,9 +314,9 @@ const rs = {
                  letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 4 },
   delfosBadge: { background: 'var(--ac)', color: '#fff', fontSize: 10, fontWeight: 700,
                  letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4 },
-  teamBadge:   { background: '#7c3aed', color: '#fff', fontSize: 10, fontWeight: 700,
+  teamBadge:   { background: 'var(--purple)', color: '#fff', fontSize: 10, fontWeight: 700,
                  letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4 },
-  learnBadge:  { background: '#2563eb', color: '#fff', fontSize: 10, fontWeight: 700,
+  learnBadge:  { background: 'var(--blue)', color: '#fff', fontSize: 10, fontWeight: 700,
                  letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4 },
   threshBadge: { background: 'rgba(239,68,68,0.12)', color: 'var(--err)', fontSize: 10, fontWeight: 700,
                  letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4, border: '1px solid rgba(239,68,68,0.4)' },
@@ -1078,7 +1078,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
                         style={{
                           ...ds.typeBtn,
                           background: obj.type === t
-                            ? (t === 'team' ? '#7c3aed' : t === 'learning' ? '#2563eb' : 'var(--ac)')
+                            ? (t === 'team' ? 'var(--purple)' : t === 'learning' ? 'var(--blue)' : 'var(--ac)')
                             : 'var(--card-2)',
                           color: obj.type === t ? '#fff' : 'var(--tx2)',
                         }}>
@@ -1204,8 +1204,8 @@ const ds = {
                    fontSize: 12, padding: '4px 6px' },
   learnBanner:   { background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)',
                    borderRadius: 6, padding: '7px 11px', fontSize: 12, color: '#60a5fa' },
-  teamBanner:    { background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.25)',
-                   borderRadius: 6, padding: '7px 11px', fontSize: 12, color: '#a78bfa' },
+  teamBanner:    { background: 'var(--ac-soft)', border: '1px solid var(--border-mid)',
+                   borderRadius: 6, padding: '7px 11px', fontSize: 12, color: 'var(--purple)' },
   fieldLabel:    { display: 'block', fontSize: 11, color: 'var(--tx2)', marginBottom: 5 },
   input:         { width: '100%', background: 'var(--card-2)', border: '1px solid var(--border)',
                    borderRadius: 8, color: 'var(--tx)', fontSize: 14, padding: '9px 12px',
