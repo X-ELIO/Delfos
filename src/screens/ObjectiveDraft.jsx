@@ -6,6 +6,21 @@ import { suggestObjectives, scoreObjectives, improveObjective } from '../lib/del
 import Shell from '../components/Shell'
 import { ARCHETYPE_THRESHOLDS } from '../lib/constants'
 
+// ── People KPI guard ──────────────────────────────────────────────────────
+const PEOPLE_KPI_SIGNALS = [
+  'engagement score', 'voluntary turnover', 'regrettable attrition', 'attrition rate',
+  'internal mobility', 'gender balance', 'objectives completion', 'kpi completion',
+  'turnover rate', 'female pipeline', 'gender diversity',
+]
+
+function detectPeopleKpiViolation(objectives) {
+  return objectives.filter(o => {
+    if (o.source === 'delfos') return false  // AI-generated ones are already compliant
+    const text = `${o.title} ${o.description}`.toLowerCase()
+    return PEOPLE_KPI_SIGNALS.some(sig => text.includes(sig))
+  })
+}
+
 // ── Threshold helpers ──────────────────────────────────────────────────────
 function getThreshold(archetype_code) {
   return ARCHETYPE_THRESHOLDS[archetype_code] ?? { min: 60, green: 75 }
@@ -966,10 +981,11 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView }
   )
 
   // ── Draft phase ──────────────────────────────────────────────────────────
-  const needsTeam = ['A', 'B'].includes(profile?.archetype_code)
-  const hasTeamObj = objectives.some(o => o.type === 'team' && o.title.trim())
-  const hasFilled  = objectives.some(o => o.title.trim())
-  const canScore   = hasFilled && (!needsTeam || hasTeamObj)
+  const needsTeam     = ['A', 'B'].includes(profile?.archetype_code)
+  const hasTeamObj    = objectives.some(o => o.type === 'team' && o.title.trim())
+  const hasFilled     = objectives.some(o => o.title.trim())
+  const kpiViolations = detectPeopleKpiViolation(objectives.filter(o => o.title.trim()))
+  const canScore      = hasFilled && (!needsTeam || hasTeamObj) && kpiViolations.length === 0
 
   return (
     <Shell step={1} onSettings={onSettings} onManagerView={onManagerView}>
@@ -998,6 +1014,25 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView }
           <div style={ds.teamGateBanner}>
             <strong>Team objective required</strong> — Archetype{' '}
             {profile.archetype_code} must include at least 1 Team objective before scoring.
+          </div>
+        )}
+
+        {/* People KPI violation banner */}
+        {kpiViolations.length > 0 && (
+          <div style={ds.kpiViolationBanner}>
+            <p style={{ fontWeight: 700, marginBottom: 4 }}>
+              ⚠ People KPI conflict — remove before scoring
+            </p>
+            <p style={{ fontSize: 12, marginBottom: 6 }}>
+              The following objective{kpiViolations.length > 1 ? 's' : ''} duplicate{kpiViolations.length === 1 ? 's' : ''} a mandatory HR KPI tracked separately.
+              These cannot be included in individual objectives portfolios:
+            </p>
+            {kpiViolations.map(o => (
+              <p key={o.id} style={{ fontSize: 12, fontWeight: 600 }}>· {o.title || '(untitled)'}</p>
+            ))}
+            <p style={{ fontSize: 11, marginTop: 6, color: 'rgba(239,68,68,0.7)' }}>
+              Mandatory KPIs excluded: Engagement Score, Voluntary Turnover, Regrettable Attrition, Objectives Completion, Internal Mobility, Gender Balance.
+            </p>
           </div>
         )}
 
@@ -1079,7 +1114,11 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView }
             </button>
             <button style={{ ...ds.scoreBtn, opacity: canScore ? 1 : 0.4 }}
               disabled={!canScore} onClick={handleScore}
-              title={needsTeam && !hasTeamObj ? 'Add a Team objective first' : undefined}>
+              title={
+                kpiViolations.length > 0 ? 'Remove People KPI duplicates first'
+                : needsTeam && !hasTeamObj ? 'Add a Team objective first'
+                : undefined
+              }>
               Score Objectives →
             </button>
           </div>
@@ -1095,8 +1134,10 @@ const ds = {
   banner:        { display: 'flex', gap: 10, background: 'rgba(240,165,0,0.08)',
                    border: '1px solid rgba(240,165,0,0.2)', borderRadius: 10, padding: '12px 16px',
                    alignItems: 'flex-start', fontSize: 13 },
-  teamGateBanner:{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
-                   borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--err)' },
+  teamGateBanner:    { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                       borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--err)' },
+  kpiViolationBanner:{ background: 'rgba(239,68,68,0.08)', border: '2px solid rgba(239,68,68,0.4)',
+                       borderRadius: 8, padding: '12px 14px', fontSize: 13, color: 'var(--err)' },
   stepBadge:     { fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--tx2)',
                    textTransform: 'uppercase', margin: '8px 0 4px' },
   heading:       { fontSize: 26, fontWeight: 700, color: 'var(--tx)', marginBottom: 4 },

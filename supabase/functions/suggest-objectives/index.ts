@@ -3,11 +3,22 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const PEOPLE_KPIS = [
+  'Employee Engagement Score',
+  'Voluntary Turnover Rate',
+  'Regrettable Attrition',
+  'Individual Objectives Completion rate',
+  'Internal Mobility Rate',
+  'Gender Balance measures',
+]
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
     const { profile, cascade, priorities } = await req.json()
+
+    const isManager = profile.archetype_code === 'A' || profile.archetype_code === 'B'
 
     const corporateItems = (cascade ?? []).filter((c: any) => c.scope === 'corporate')
     const countryItems   = (cascade ?? []).filter((c: any) => c.scope === 'country')
@@ -34,19 +45,38 @@ Your task is to generate EXACTLY 5 individual performance objectives for a speci
    Objectives must be actionable in the employee's specific market. Consider local business context, team scale, and market maturity. Avoid copy-pasting corporate language if it doesn't apply locally.
 
 3. CASCADE ALIGNMENT (context, not a template)
-   Use the company and country strategic priorities as inspiration and alignment context. At least 3 of the 5 objectives should connect to a cascade item — but the connection must feel natural for the role, not forced.
+   Use the company and country strategic priorities as inspiration. At least 3 of the 5 objectives should connect to a cascade item — but the connection must feel natural for the role, not forced.
+
+## Objective types
+- performance: individual delivery, business metrics, project outcomes
+- learning: skill acquisition, certifications, knowledge development
+- team: people management outcomes — ONLY for Archetype A or B (people managers)
 
 ## Archetype guidance
-- A (Individual Contributor / Specialist): technical delivery, process improvement, own skill development, domain expertise
-- B (Team Lead / People Manager): team performance, project delivery, cross-functional collaboration, developing others
-- C (Senior Manager / Director): strategic initiatives, organisational transformation, business outcomes at scale
-- D (Executive / VP): market leadership, P&L ownership, strategic partnerships, organisational capability building
+- A (Strategic Leadership / C-Suite / VPs / Directors): strategic initiatives, organisational transformation, business outcomes at scale, P&L ownership
+- B (Operational Leadership / Heads of Function / Senior Managers): team performance, project delivery, cross-functional collaboration, developing others
+- C (Senior IC / SMEs): deep expertise, mentors, drives functional excellence, process improvement
+- D (Individual Contributor / Analysts / Coordinators): delivers reliably, grows capabilities, domain skills
 
-## Rules
+## Rules for Archetype A and B (people managers) — MANDATORY
+1. At least 1 of the 5 objectives MUST be type "team". Team objectives reflect collective outcomes the manager drives — e.g. team capability building, cross-functional project delivery, team process improvement, knowledge transfer, upskilling the team.
+2. "team" objectives must NOT duplicate the mandatory People Management KPIs listed below — those are tracked separately outside this portfolio.
+3. Suggested composition: 3 performance + 1 learning + 1 team (adjust if the role strongly demands otherwise, but team must appear).
+
+## Rules for Archetype C and D (individual contributors)
+- Do NOT include any "team" type objectives. Use only "performance" and "learning".
+- Suggested composition: at least 3 performance and at least 1 learning.
+
+## CRITICAL — People KPI exclusion (applies to ALL archetypes)
+The following are MANDATORY KPIs tracked separately by HR. NEVER generate an objective that duplicates, rephrases, or is primarily about these metrics:
+${PEOPLE_KPIS.map(k => `- ${k}`).join('\n')}
+
+If you generate an objective that overlaps with any of the above, the submission will be invalid. Focus individual objectives on delivery, projects, and skills — not on HR compliance metrics.
+
+## General rules
 - Each objective must be SMART: specific, measurable, time-bound
 - Include a clear baseline, target, and measurement method in the description
 - Include exactly 3 Key Results per objective (KR1, KR2, KR3)
-- Mix types: at least 3 performance objectives and at least 1 learning objective
 - Do NOT include People Management KPIs (those are tracked separately)
 - Write in English, professional tone, concise
 
@@ -89,7 +119,7 @@ Return ONLY a valid JSON array with exactly 5 objects — no markdown, no explan
     "value_statement": "..."
   },
   {
-    "type": "learning",
+    "type": "team",
     "title": "...",
     "description": "...",
     "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."],
@@ -97,7 +127,9 @@ Return ONLY a valid JSON array with exactly 5 objects — no markdown, no explan
     "metric": "...",
     "value_statement": "..."
   }
-]`
+]
+
+IMPORTANT: The last item shows type "team" as an example for people managers. If the archetype is C or D, replace it with a "learning" or "performance" objective and do NOT include any "team" type.`
 
     const userPrompt = `## Employee profile
 - Name: ${profile.full_name}
@@ -105,12 +137,13 @@ Return ONLY a valid JSON array with exactly 5 objects — no markdown, no explan
 - Department: ${profile.department || 'Not specified'}
 - Country / Market: ${profile.country_label ?? 'Corporate'}
 - Archetype: ${profile.archetype_code} — ${profile.archetype_label}
+${isManager ? `- This is a PEOPLE MANAGER (Archetype ${profile.archetype_code}): portfolio MUST include at least 1 "team" type objective and MUST NOT duplicate any mandatory People Management KPIs.` : `- This is an INDIVIDUAL CONTRIBUTOR (Archetype ${profile.archetype_code}): use only "performance" and "learning" types. Do NOT include any "team" type objectives.`}
 ${priorities ? `- Self-reported priorities for 2026: ${priorities}` : ''}
 
 ## Strategic context (use for alignment, not as a template)
 ${cascadeText || 'No cascade data available.'}
 
-Design 5 objectives that are highly relevant to this person's role and market, and where natural, connected to the strategic priorities above.`
+Design 5 objectives that are highly relevant to this person's role and market, compliant with all type rules above, and where natural, connected to the strategic priorities above.`
 
     const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

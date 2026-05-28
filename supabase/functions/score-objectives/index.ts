@@ -16,6 +16,9 @@ Deno.serve(async (req) => {
       `OBJ ${i + 1} [${o.type}]:\nTitle: ${o.title}\nDescription: ${o.description ?? ''}${o.key_results?.length ? '\nKRs: ' + o.key_results.join(' | ') : ''}`
     ).join('\n\n')
 
+    const isManager = profile.archetype_code === 'A' || profile.archetype_code === 'B'
+    const hasTeamObj = objectives.some((o: any) => o.type === 'team')
+
     const systemPrompt = `You are Delfos, an AI performance management engine for X-ELIO, a global energy transition company.
 
 Score each objective for Bonus Potential (0–100). Then write a portfolio-level summary.
@@ -27,12 +30,31 @@ Scoring dimensions (weights must reflect exactly these percentages in your sub_s
 - Measurability (15%): Are there a clear baseline, target, and measurement method?
 - Time-bound (5%): Are specific dates, quarters, or deadlines included?
 
+## CRITICAL scoring rules
+
+### People KPI exclusion (applies to ALL archetypes)
+The following are MANDATORY KPIs tracked separately by HR. If any objective duplicates, rephrases, or is primarily about one of these metrics, it is INVALID:
+- Employee Engagement Score
+- Voluntary Turnover Rate / Regrettable Attrition
+- Individual Objectives Completion rate (% of team with active objectives)
+- Internal Mobility Rate
+- Gender Balance measures
+
+If an objective overlaps with any of the above: set Relevance to 20 or below, set overall score to 25 or below, and state clearly in feedback: "This duplicates a mandatory People KPI — remove this objective and replace it."
+
+### Team objective rule (Archetype A and B only)
+${isManager
+  ? hasTeamObj
+    ? 'This portfolio includes a Team objective — this satisfies the mandatory requirement for Archetype ' + profile.archetype_code + '.'
+    : 'WARNING: This is a people manager (Archetype ' + profile.archetype_code + ') but the portfolio contains NO "team" type objective. Note this gap in the summary and flag it as a blocker.'
+  : 'This is an individual contributor (Archetype ' + profile.archetype_code + '). "team" type objectives should not appear; if any do, treat them as a type mismatch and lower the Relevance score.'}
+
 Rules:
 - Portfolio weights must sum to EXACTLY 100
 - feedback: one sharp sentence on the main concern or stretch quality (shown as italic callout)
 - coaching_tips: 1-2 concrete actions to increase this objective's score (max 15 words each, specific not generic)
 - linked_cascades: short text of cascade items this connects to (empty array if none)
-- summary: 3-4 sentences evaluating the full portfolio — name specific objectives by title fragment, identify the top strength and the key gap to address
+- summary: 3-4 sentences evaluating the full portfolio — name specific objectives by title fragment, identify the top strength and the key gap to address${isManager && !hasTeamObj ? ' — explicitly flag that a Team objective is missing and required' : ''}
 
 Return ONLY a valid JSON object, no markdown, no explanation:
 {
