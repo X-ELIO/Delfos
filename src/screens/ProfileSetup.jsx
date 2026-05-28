@@ -36,7 +36,7 @@ const PEOPLE_KPIS = [
     target: 'Take appropriate measures — diverse slates, sourcing network expansion, female talent pipeline reinforcement. Target: improve overall gender balance by 2–4 pp by Q4 vs Jan baseline, measured at function/cohort level not per decision, not per hire.' },
 ]
 
-export default function ProfileSetup({ onManagerView, onCoverageView, onLogout, onSaved, session, existingProfile }) {
+export default function ProfileSetup({ onEmployeeView, onManagerView, onCoverageView, activeTab, onLogout, onSaved, session, existingProfile }) {
   const { saveProfile } = useProfile()
 
   const [ref, setRef]   = useState({ countries: [], managers: [] })
@@ -121,7 +121,7 @@ export default function ProfileSetup({ onManagerView, onCoverageView, onLogout, 
   const canSubmit  = form.full_name && form.manager_id && countryOk && form.archetype_code
 
   if (loading) return (
-    <Shell step={0} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
+    <Shell step={0} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
         <p style={{ color: 'var(--tx2)' }}>Cargando…</p>
       </div>
@@ -129,7 +129,7 @@ export default function ProfileSetup({ onManagerView, onCoverageView, onLogout, 
   )
 
   return (
-    <Shell step={0} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
+    <Shell step={0} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
       <div style={s.page}>
         <p style={s.stepBadge}>STEP 01</p>
         <h1 style={s.heading}>Define Your Role</h1>

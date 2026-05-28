@@ -27,7 +27,15 @@ function ThemeToggle() {
   )
 }
 
-export default function Shell({ children, step = 0, bonusChip = null, onBack = null, onSettings = null, onManagerView = null, onCoverageView = null, onLogout = null }) {
+export default function Shell({ children, step = 0, bonusChip = null, onBack = null, onSettings = null,
+  onEmployeeView = null, onManagerView = null, onCoverageView = null, onLogout = null, activeTab = 'employee' }) {
+
+  const NAV_TABS = [
+    { id: 'employee', label: 'Employee', onClick: onEmployeeView },
+    { id: 'manager',  label: 'Manager',  onClick: onManagerView  },
+    { id: 'coverage', label: 'Coverage', onClick: onCoverageView },
+  ]
+
   return (
     <div style={s.root}>
       <div style={s.body}>
@@ -41,25 +49,31 @@ export default function Shell({ children, step = 0, bonusChip = null, onBack = n
                 </svg>
               </button>
             )}
-          <div style={s.brand}>
-            <div style={s.brandMark}>D</div>
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-              <span style={s.brandName}>DELFOS</span>
-              <span style={s.brandSub}>V03.1.0</span>
+            <div style={s.brand}>
+              <div style={s.brandMark}>D</div>
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+                <span style={s.brandName}>DELFOS</span>
+                <span style={s.brandSub}>V03.1.0</span>
+              </div>
             </div>
-          </div>
           </div>
 
           <div style={s.topRight}>
             {/* Mode tabs */}
             <div style={s.tabs}>
-              <button style={{ ...s.tab, ...s.tabActive }}>Employee</button>
-              {onManagerView && (
-                <button style={s.tab} onClick={onManagerView}>Manager</button>
-              )}
-              {onCoverageView && (
-                <button style={s.tab} onClick={onCoverageView}>Coverage</button>
-              )}
+              {NAV_TABS.map(tab => {
+                const isActive = tab.id === activeTab
+                return (
+                  <button
+                    key={tab.id}
+                    style={{ ...s.tab, ...(isActive ? s.tabActive : {}), ...(!isActive && !tab.onClick ? s.tabDisabled : {}) }}
+                    onClick={isActive ? undefined : tab.onClick}
+                    disabled={isActive || !tab.onClick}
+                  >
+                    {tab.label}
+                  </button>
+                )
+              })}
             </div>
 
             {/* Step progress */}
@@ -149,7 +163,8 @@ const s = {
   tab:       { background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer',
                fontSize: 12, fontWeight: 500, padding: '4px 12px', borderRadius: 6,
                transition: 'background 0.15s, color 0.15s' },
-  tabActive: { background: 'var(--ac)', color: '#fff' },
+  tabActive:   { background: 'var(--ac)', color: '#fff' },
+  tabDisabled: { opacity: 0.35, cursor: 'not-allowed' },
 
   stepper:   { display: 'flex', alignItems: 'center', gap: 0 },
   stepWrap:  { display: 'flex', alignItems: 'center', gap: 5 },

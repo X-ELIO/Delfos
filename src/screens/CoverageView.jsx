@@ -107,7 +107,7 @@ function downloadCsv(submissions) {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
-export default function CoverageView({ onBack, onManagerView }) {
+export default function CoverageView({ onEmployeeView, onManagerView, activeTab, onLogout }) {
   const [loading,          setLoading]          = useState(true)
   const [submissions,      setSubmissions]      = useState([])
   const [objBySubmission,  setObjBySubmission]  = useState({})
@@ -192,13 +192,12 @@ export default function CoverageView({ onBack, onManagerView }) {
   }, {})
 
   return (
-    <Shell step={0} onBack={onBack} onManagerView={onManagerView}>
+    <Shell step={0} onEmployeeView={onEmployeeView} onManagerView={onManagerView} activeTab={activeTab} onLogout={onLogout}>
       <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div>
-            <button style={s.backLink} onClick={onBack}>← Back</button>
             <h1 style={s.heading}>Coverage Dashboard</h1>
             <p style={s.sub}>2026 Objectives cycle · Real-time submission tracking</p>
           </div>

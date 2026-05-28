@@ -71,12 +71,12 @@ const LOAD_MESSAGES = {
 }
 
 // ── Loading screen ─────────────────────────────────────────────────────────
-function LoadingScreen({ action, elapsed, onSettings, onManagerView, onCoverageView, onLogout }) {
+function LoadingScreen({ action, elapsed, onSettings, onEmployeeView, onManagerView, onCoverageView, activeTab, onLogout }) {
   const msgs  = LOAD_MESSAGES[action] ?? []
   const msg   = [...msgs].reverse().find(([t]) => elapsed >= t)?.[1] ?? ''
   const title = action === 'asking' ? 'Asking Delfos for suggestions…' : 'Scoring your portfolio…'
   return (
-    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
+    <Shell step={1} onSettings={onSettings} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
                     justifyContent: 'center', height: '100%', gap: 20, textAlign: 'center' }}>
         <div style={{ position: 'relative', width: 56, height: 56 }}>
@@ -105,7 +105,7 @@ function LoadingScreen({ action, elapsed, onSettings, onManagerView, onCoverageV
 const ls = {}
 
 // ── Refine screen ──────────────────────────────────────────────────────────
-function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImproved, onRescored, cascade, onSettings, onManagerView, onCoverageView, onLogout }) {
+function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImproved, onRescored, cascade, onSettings, onEmployeeView, onManagerView, onCoverageView, activeTab, onLogout }) {
   const { profile } = useProfile()
   const thresh = getThreshold(profile?.archetype_code)
 
@@ -177,7 +177,7 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
   const color  = scoreColor(avg, thresh)
 
   return (
-    <Shell step={1} onBack={onBack} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
+    <Shell step={1} onBack={onBack} onSettings={onSettings} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
@@ -442,7 +442,7 @@ function downloadBambu(objectives, profile) {
 }
 
 // ── Report screen ──────────────────────────────────────────────────────────
-function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettings, onManagerView, onCoverageView, onLogout }) {
+function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettings, onEmployeeView, onManagerView, onCoverageView, activeTab, onLogout }) {
   const { profile } = useProfile()
   const thresh = getThreshold(profile?.archetype_code)
   const [saving, setSaving] = useState(false)
@@ -467,7 +467,7 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettin
   const weakObjs = active.filter(o => (o.score ?? 0) < thresh.min)
 
   return (
-    <Shell step={2} onBack={onBack} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
+    <Shell step={2} onBack={onBack} onSettings={onSettings} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
       <div style={{ maxWidth: 700, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── AI-Governed banner ── */}
@@ -814,7 +814,7 @@ const ca = {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
-export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, onCoverageView, onLogout }) {
+export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView, onManagerView, onCoverageView, activeTab, onLogout }) {
   const { profile } = useProfile()
 
   const [cascade,          setCascade]          = useState([])
@@ -928,7 +928,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
   }
 
   if (phase === 'loading') return (
-    <LoadingScreen action={loadCtx.action} elapsed={loadCtx.elapsed} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout} />
+    <LoadingScreen action={loadCtx.action} elapsed={loadCtx.elapsed} onSettings={onSettings} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout} />
   )
 
   if (phase === 'refine') return (
@@ -936,8 +936,10 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
       objectives={objectives}
       cascade={cascade}
       onSettings={onSettings}
+      onEmployeeView={onEmployeeView}
       onManagerView={onManagerView}
       onCoverageView={onCoverageView}
+      activeTab={activeTab}
       onLogout={onLogout}
       onBack={() => setPhase('draft')}
       onIgnore={(id) => update(id, 'status', 'ignored')}
@@ -1024,8 +1026,10 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
       objectives={objectives}
       portfolioSummary={portfolioSummary}
       onSettings={onSettings}
+      onEmployeeView={onEmployeeView}
       onManagerView={onManagerView}
       onCoverageView={onCoverageView}
+      activeTab={activeTab}
       onLogout={onLogout}
       onBack={() => setPhase('refine')}
       onSubmit={handleSubmit}
@@ -1040,7 +1044,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
   const canScore      = hasFilled && (!needsTeam || hasTeamObj) && kpiViolations.length === 0
 
   return (
-    <Shell step={1} onBack={() => onNavigate('profile')} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} onLogout={onLogout}>
+    <Shell step={1} onBack={() => onNavigate('profile')} onSettings={onSettings} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
       <div style={ds.page}>
 
         {/* Bonus info banner */}

@@ -109,16 +109,19 @@ function Router({ onLogout, session }) {
     await supabase.auth.signOut()
   }
 
+  const tabsEmployee = { onEmployeeView: null,         onManagerView: goManager, onCoverageView: goCoverage, activeTab: 'employee' }
+  const tabsManager  = { onEmployeeView: goObjectives, onManagerView: null,      onCoverageView: goCoverage, activeTab: 'manager'  }
+  const tabsCoverage = { onEmployeeView: goObjectives, onManagerView: goManager, onCoverageView: null,       activeTab: 'coverage' }
+
   if (screen === 'settings') return <Settings onBack={goObjectives} />
-  if (screen === 'manager')  return <ManagerView onBack={goObjectives} onCoverageView={goCoverage} />
-  if (screen === 'coverage') return <CoverageView onBack={goObjectives} onManagerView={goManager} />
+  if (screen === 'manager')  return <ManagerView {...tabsManager}  onLogout={handleLogout} />
+  if (screen === 'coverage') return <CoverageView {...tabsCoverage} onLogout={handleLogout} />
 
   if (!profile || editingProfile) return (
     <ProfileSetup
       session={session}
       existingProfile={profile}
-      onManagerView={goManager}
-      onCoverageView={goCoverage}
+      {...tabsEmployee}
       onLogout={handleLogout}
       onSaved={() => setEditingProfile(false)}
     />
@@ -133,8 +136,7 @@ function Router({ onLogout, session }) {
           setScreen(to)
         }}
         onSettings={goSettings}
-        onManagerView={goManager}
-        onCoverageView={goCoverage}
+        {...tabsEmployee}
         onLogout={handleLogout}
       />
     )
