@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../context/ProfileContext'
-import { suggestObjectives, scoreObjectives, improveObjective } from '../lib/delfos'
+import { suggestObjectivesStream, scoreObjectives, improveObjective } from '../lib/delfos'
 import Shell from '../components/Shell'
 import { ARCHETYPE_THRESHOLDS } from '../lib/constants'
 
@@ -607,7 +607,15 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
   const [portfolioSummary, setPortfolioSummary] = useState('')
   const [draftImproving,   setDraftImproving]   = useState({})
   const [draftProposals,   setDraftProposals]   = useState({})
+  const [delfosStreaming,  setDelfosStreaming]   = useState(false)
   const timerRef = useRef(null)
+
+  useEffect(() => {
+    const s = document.createElement('style')
+    s.textContent = '@keyframes objIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}'
+    document.head.appendChild(s)
+    return () => { try { document.head.removeChild(s) } catch(_){} }
+  }, [])
 
   useEffect(() => {
     try { sessionStorage.setItem('delfos_objectives_draft', JSON.stringify(objectives)) } catch (_) {}
@@ -640,27 +648,29 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
   }
 
-  // ── handleAskDelfos: APPENDS suggested objectives (removes untitled ones first) ──
+  // ── handleAskDelfos: streams objectives one by one, then auto-scores ──
   async function handleAskDelfos() {
-    setPhase('loading'); startTimer('asking')
+    setDelfosStreaming(true)
+    setError(null)
+    const existing = objectives.filter(o => o.title.trim())
+    setObjectives(existing)
+    const streamed = []
     try {
-      const suggested = await suggestObjectives({
-        profile,
-        cascade,
-        priorities: profile.current_priorities,
-        typePreference: delfosType,
-      })
-      stopTimer()
-      setObjectives(prev => {
-        const withContent = prev.filter(o => o.title.trim())
-        return [...withContent, ...suggested]
-      })
-      setPhase('draft')
+      await suggestObjectivesStream(
+        { profile, cascade, priorities: profile.current_priorities, typePreference: delfosType },
+        (obj) => {
+          streamed.push(obj)
+          setObjectives(prev => [...prev, obj])
+        }
+      )
+      const allObjs = [...existing, ...streamed]
+      setObjectives(allObjs)
+      setDelfosStreaming(false)
+      await handleScoreWith(allObjs)
     } catch (err) {
-      stopTimer()
       console.error('suggest-objectives error:', err)
       setError(`Error: ${err?.message ?? JSON.stringify(err)}`)
-      setPhase('draft')
+      setDelfosStreaming(false)
     }
   }
 
@@ -690,9 +700,9 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
     setDraftProposals(p => { const n = { ...p }; delete n[objId]; return n })
   }
 
-  // ── handleScore: score all non-ignored titled objectives → 'report' ──
-  async function handleScore() {
-    const filled = objectives.filter(o => o.title.trim())
+  // ── handleScoreWith: score given objectives → 'report' ──
+  async function handleScoreWith(toScore) {
+    const filled = toScore.filter(o => o.title?.trim())
     if (!filled.length) return
     setPhase('loading'); startTimer('scoring')
     try {
@@ -701,7 +711,6 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
       let scored    = result?.objectives ?? result
       const summary = result?.summary ?? ''
 
-      // Normalise weights to exactly 100
       const weightSum = scored.reduce((s, o) => s + (o.weight ?? 0), 0)
       if (weightSum > 0 && weightSum !== 100) {
         const scale = 100 / weightSum
@@ -724,6 +733,8 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
       setPhase('draft')
     }
   }
+
+  async function handleScore() { await handleScoreWith(objectives) }
 
   function addObjective() {
     setObjectives(p => [...p, { id: Date.now(), type: 'performance', title: '', description: '', source: 'user', status: 'active' }])
@@ -894,12 +905,27 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
           </div>
         )}
 
+        {/* Streaming indicator */}
+        {delfosStreaming && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10,
+                        background: 'var(--ai-soft)', border: '1px solid var(--ai-border)',
+                        borderRadius: 8, padding: '10px 14px' }}>
+            <svg width="16" height="16" style={{ animation: 'spin 1.2s linear infinite', flexShrink: 0 }}>
+              <circle cx="8" cy="8" r="6" fill="none" stroke="var(--purple)" strokeWidth="2"
+                strokeDasharray="10 28" strokeLinecap="round" />
+            </svg>
+            <span style={{ fontSize: 13, color: 'var(--purple)', fontWeight: 500 }}>
+              ✦ Delfos is generating your objectives…
+            </span>
+          </div>
+        )}
+
         {/* Objective cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {objectives.map((obj, i) => {
             const ph = PLACEHOLDERS[obj.type] ?? PLACEHOLDERS.performance
             return (
-              <div key={obj.id} style={ds.objCard}>
+              <div key={obj.id} style={{ ...ds.objCard, animation: obj.source === 'delfos' ? 'objIn 0.4s ease' : undefined }}>
                 {/* Card header */}
                 <div style={ds.objCardHead}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -1044,12 +1070,14 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
                 </button>
               )
             })}
-            <button style={ds.aiBtn} onClick={handleAskDelfos}>
-              ✦ Añadir sugerencias de Delfos
+            <button style={{ ...ds.aiBtn, opacity: delfosStreaming ? 0.5 : 1 }}
+              disabled={delfosStreaming}
+              onClick={handleAskDelfos}>
+              {delfosStreaming ? '⏳ Generando…' : '✦ Añadir sugerencias de Delfos'}
             </button>
           </div>
-          <button style={{ ...ds.scoreBtn, opacity: canScore ? 1 : 0.4 }}
-            disabled={!canScore} onClick={handleScore}
+          <button style={{ ...ds.scoreBtn, opacity: (canScore && !delfosStreaming) ? 1 : 0.4 }}
+            disabled={!canScore || delfosStreaming} onClick={handleScore}
             title={
               kpiViolations.length > 0 ? 'Remove People KPI duplicates first'
               : needsTeam && !hasTeamObj ? 'Add a Team objective first'
