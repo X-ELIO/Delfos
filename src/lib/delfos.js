@@ -27,6 +27,6 @@ export async function scoreObjectives({ profile, objectives, cascade }) {
   return invoke('score-objectives', { profile, objectives, cascade })
 }
 
-export async function improveObjective({ profile, objective, cascade }) {
-  return invoke('improve-objective', { profile, objective, cascade, feedback: objective.feedback })
+export async function improveObjective({ profile, objective, cascade, otherTitles = [] }) {
+  return invoke('improve-objective', { profile, objective, cascade, feedback: objective.feedback, otherTitles })
 }

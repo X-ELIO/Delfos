@@ -7,7 +7,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { profile, objective, cascade, feedback } = await req.json()
+    const { profile, objective, cascade, feedback, otherTitles } = await req.json()
 
     const corporateItems = (cascade ?? []).filter((c: any) => c.scope === 'corporate').slice(0, 6)
     const countryItems   = (cascade ?? []).filter((c: any) => c.scope === 'country')
@@ -25,6 +25,11 @@ Your job is to rewrite a single objective to improve its quality and Bonus Poten
 Keep the same general intent but make it more specific, measurable, ambitious, and cascade-aligned.
 Include a clear baseline, target, and measurement method.
 Include exactly 3 Key Results.
+
+CRITICAL UNIQUENESS RULE:
+- The improved title MUST be clearly and meaningfully different from the original title — not a minimal rephrasing.
+- The improved objective MUST NOT duplicate, overlap with, or closely resemble any of the other objectives already in the portfolio.
+- If the existing portfolio already covers a topic well, push this objective into a genuinely distinct area or angle within the same function.
 
 Return ONLY a valid JSON object, no markdown:
 {
@@ -45,8 +50,9 @@ ${objective.key_results?.length ? 'KRs: ' + objective.key_results.join(' | ') : 
 
 ${feedback ? `Coaching feedback to address: ${feedback}` : ''}
 ${objective.sub_scores ? `Weakest dimensions: measurability=${objective.sub_scores.measurability}, ambition=${objective.sub_scores.ambition}, impact=${objective.sub_scores.impact}` : ''}
+${(otherTitles ?? []).length > 0 ? `\nOther objectives already in this portfolio — do NOT repeat or overlap with any of these:\n${(otherTitles as string[]).map((t: string) => `- ${t}`).join('\n')}` : ''}
 
-Rewrite this objective to score higher. Keep the same general topic.`
+Rewrite this objective to score higher. The new title must be meaningfully different from the original: "${objective.title}"`
 
     const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

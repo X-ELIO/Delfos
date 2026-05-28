@@ -108,7 +108,10 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
   async function handleImprove(obj) {
     setImproving(p => ({ ...p, [obj.id]: 'improving' }))
     try {
-      const improved = await improveObjective({ profile, objective: obj, cascade })
+      const otherTitles = objectives
+        .filter(o => o.id !== obj.id && o.status !== 'ignored' && o.title?.trim())
+        .map(o => o.title)
+      const improved = await improveObjective({ profile, objective: obj, cascade, otherTitles })
       setProposals(p => ({ ...p, [obj.id]: improved }))
     } catch (err) {
       console.error('improve error:', err)
