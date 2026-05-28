@@ -818,14 +818,22 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
   const { profile } = useProfile()
 
   const [cascade,          setCascade]          = useState([])
-  const [objectives,       setObjectives]       = useState([
-    { id: 1, type: 'performance', title: '', description: '', source: 'user', status: 'active' },
-  ])
+  const [objectives,       setObjectives]       = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('delfos_objectives_draft')
+      if (saved) return JSON.parse(saved)
+    } catch (_) {}
+    return [{ id: 1, type: 'performance', title: '', description: '', source: 'user', status: 'active' }]
+  })
   const [phase,            setPhase]            = useState('draft')
   const [loadCtx,          setLoadCtx]          = useState({ action: 'asking', elapsed: 0 })
   const [error,            setError]            = useState(null)
   const [portfolioSummary, setPortfolioSummary] = useState('')
   const timerRef = useRef(null)
+
+  useEffect(() => {
+    try { sessionStorage.setItem('delfos_objectives_draft', JSON.stringify(objectives)) } catch (_) {}
+  }, [objectives])
 
   useEffect(() => {
     async function load() {
@@ -1003,6 +1011,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
 
       if (objErr) throw objErr
 
+      try { sessionStorage.removeItem('delfos_objectives_draft') } catch (_) {}
       onNavigate('submitted', { objectives })
     } catch (err) {
       console.error('submit error:', err)
@@ -1048,11 +1057,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <p style={ds.stepBadge}>STEP 02</p>
-          <button style={ds.editProfileBtn} onClick={() => {
-            if (window.confirm('Edit your role profile? Your current objectives will be cleared.')) {
-              onNavigate('profile')
-            }
-          }}>✎ Edit profile</button>
+          <button style={ds.editProfileBtn} onClick={() => onNavigate('profile')}>✎ Edit profile</button>
         </div>
         <h1 style={ds.heading}>Set Your Objectives</h1>
 
@@ -1180,11 +1185,6 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
         )}
 
         <div style={ds.footer}>
-          <button style={ds.backBtn} onClick={() => {
-            if (window.confirm('Go back to Role Setup? Your current objectives will be cleared.')) {
-              onNavigate('profile')
-            }
-          }}>← Back</button>
           <div style={{ display: 'flex', gap: 10 }}>
             <button style={ds.aiBtn} onClick={handleAskDelfos}>
               ✦ Ask Delfos for suggestions
