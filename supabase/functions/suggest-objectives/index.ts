@@ -16,7 +16,12 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { profile, cascade, priorities } = await req.json()
+    const { profile, cascade, priorities, today } = await req.json()
+    const currentDate = today ?? new Date().toISOString().split('T')[0]
+    const currentYear = currentDate.slice(0, 4)
+    const currentMonth = parseInt(currentDate.slice(5, 7))
+    const currentQuarter = currentMonth <= 3 ? 'Q1' : currentMonth <= 6 ? 'Q2' : currentMonth <= 9 ? 'Q3' : 'Q4'
+    const futureQuarters = ['Q1','Q2','Q3','Q4'].filter(q => q > currentQuarter).map(q => `${q} ${currentYear}`).concat([`Q1 ${parseInt(currentYear)+1}`])
 
     const isManager = profile.archetype_code === 'A' || profile.archetype_code === 'B'
 
@@ -34,7 +39,10 @@ Deno.serve(async (req) => {
 
     const systemPrompt = `You are Delfos, an AI performance management engine for X-ELIO, a global energy transition company.
 
-Your task is to generate EXACTLY 5 individual performance objectives for a specific employee for 2026. You MUST return exactly 5 objects — no more, no less.
+Your task is to generate EXACTLY 5 individual performance objectives for a specific employee. You MUST return exactly 5 objects — no more, no less.
+
+## CURRENT DATE
+Today is ${currentDate} (${currentQuarter} ${currentYear}). All deadlines MUST be in the future. Available quarters: ${futureQuarters.join(', ')}. Do NOT use past quarters or the current quarter if it ends within 2 weeks.
 
 ## Priority order for designing objectives
 

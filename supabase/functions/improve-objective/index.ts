@@ -7,7 +7,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { profile, objective, cascade, feedback, otherTitles } = await req.json()
+    const { profile, objective, cascade, feedback, otherTitles, today } = await req.json()
+    const currentDate = today ?? new Date().toISOString().split('T')[0]
 
     const corporateItems = (cascade ?? []).filter((c: any) => c.scope === 'corporate').slice(0, 6)
     const countryItems   = (cascade ?? []).filter((c: any) => c.scope === 'country')
@@ -21,6 +22,7 @@ Deno.serve(async (req) => {
     ].filter(Boolean).join('\n\n')
 
     const systemPrompt = `You are Delfos, an AI performance management engine for X-ELIO.
+Today is ${currentDate}. All deadlines in the improved objective MUST be in the future — do not use past or imminent quarters.
 Your job is to rewrite a single objective to improve its quality and Bonus Potential score.
 Keep the same general intent but make it more specific, measurable, ambitious, and cascade-aligned.
 Include a clear baseline, target, and measurement method.

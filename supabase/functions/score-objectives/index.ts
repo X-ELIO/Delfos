@@ -7,7 +7,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { profile, objectives, cascade } = await req.json()
+    const { profile, objectives, cascade, today } = await req.json()
+    const currentDate = today ?? new Date().toISOString().split('T')[0]
 
     const corporateItems = (cascade ?? []).filter((c: any) => c.scope === 'corporate').slice(0, 8)
     const countryItems   = (cascade ?? []).filter((c: any) => c.scope === 'country')
@@ -28,6 +29,8 @@ Deno.serve(async (req) => {
     const hasTeamObj = objectives.some((o: any) => o.type === 'team')
 
     const systemPrompt = `You are Delfos, an AI performance management engine for X-ELIO, a global energy transition company.
+
+Today is ${currentDate}. Deadlines in the past or current quarter ending imminently should reduce the Time-bound score.
 
 Score each objective for Bonus Potential (0–100). Then write a portfolio-level summary.
 

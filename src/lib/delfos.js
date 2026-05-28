@@ -19,14 +19,16 @@ async function invoke(fn, body) {
   return data
 }
 
+const today = () => new Date().toISOString().split('T')[0]
+
 export async function suggestObjectives({ profile, cascade, priorities }) {
-  return invoke('suggest-objectives', { profile, cascade, priorities })
+  return invoke('suggest-objectives', { profile, cascade, priorities, today: today() })
 }
 
 export async function scoreObjectives({ profile, objectives, cascade }) {
-  return invoke('score-objectives', { profile, objectives, cascade })
+  return invoke('score-objectives', { profile, objectives, cascade, today: today() })
 }
 
 export async function improveObjective({ profile, objective, cascade, otherTitles = [] }) {
-  return invoke('improve-objective', { profile, objective, cascade, feedback: objective.feedback, otherTitles })
+  return invoke('improve-objective', { profile, objective, cascade, feedback: objective.feedback, otherTitles, today: today() })
 }
