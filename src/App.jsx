@@ -93,7 +93,7 @@ function Submitted({ objectives }) {
 }
 
 // ── Authenticated router ───────────────────────────────────────────────────
-function Router({ onLogout, session }) {
+function Router({ onLogout, session, canAccessCoverage }) {
   const { profile, saveProfile, clearProfile } = useProfile()
   const [screen,         setScreen]         = useState('objectives')
   const [payload,        setPayload]        = useState(null)
@@ -101,7 +101,7 @@ function Router({ onLogout, session }) {
 
   const goSettings   = () => setScreen('settings')
   const goManager    = () => setScreen('manager')
-  const goCoverage   = () => setScreen('coverage')
+  const goCoverage   = canAccessCoverage ? () => setScreen('coverage') : null
   const goObjectives = () => setScreen('objectives')
 
   async function handleLogout() {
@@ -149,23 +149,35 @@ function Router({ onLogout, session }) {
 
 // ── Root app with auth gate ────────────────────────────────────────────────
 export default function App() {
-  const [session, setSession] = useState(undefined) // undefined = checking
+  const [session,          setSession]          = useState(undefined)
+  const [canAccessCoverage, setCanAccessCoverage] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session ?? null))
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session ?? null)
+      if (session?.user?.email) checkCoverageAccess(session.user.email)
+    })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setSession(session ?? null)
+      if (session?.user?.email) checkCoverageAccess(session.user.email)
+      else setCanAccessCoverage(false)
     })
     return () => subscription.unsubscribe()
   }, [])
 
-  if (session === undefined) return null // prevents flash before session resolves
+  async function checkCoverageAccess(email) {
+    const { data } = await supabase
+      .from('org_chart').select('is_coverage_admin').eq('email', email).maybeSingle()
+    setCanAccessCoverage(data?.is_coverage_admin === true)
+  }
+
+  if (session === undefined) return null
 
   if (!session) return <LoginScreen />
 
   return (
     <ProfileProvider>
-      <Router session={session} />
+      <Router session={session} canAccessCoverage={canAccessCoverage} />
     </ProfileProvider>
   )
 }
