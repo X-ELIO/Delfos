@@ -107,21 +107,44 @@ function downloadCsv(submissions) {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
+// ── Hierarchy helpers ──────────────────────────────────────────────────────
+function buildOrgMap(orgChart) {
+  const map = {}
+  for (const emp of orgChart) {
+    const mgr = emp.manager_name ?? '__root__'
+    if (!map[mgr]) map[mgr] = []
+    map[mgr].push(emp)
+  }
+  return map
+}
+
+function getSubtree(name, map, visited = new Set()) {
+  if (visited.has(name)) return []
+  visited.add(name)
+  const direct = map[name] ?? []
+  const all = [...direct]
+  for (const p of direct) all.push(...getSubtree(p.full_name, map, visited))
+  return all
+}
+
 export default function CoverageView({ onEmployeeView, onManagerView, activeTab, onLogout }) {
   const [loading,          setLoading]          = useState(true)
   const [submissions,      setSubmissions]      = useState([])
   const [objBySubmission,  setObjBySubmission]  = useState({})
+  const [orgChart,         setOrgChart]         = useState([])
   const [lastRefresh,      setLastRefresh]      = useState(null)
   const [autoRefresh,      setAutoRefresh]      = useState(false)
   const autoRefreshRef = useRef(null)
 
   async function load() {
     setLoading(true)
-    const [{ data: subs }, { data: objs }] = await Promise.all([
+    const [{ data: subs }, { data: objs }, { data: org }] = await Promise.all([
       supabase.from('objective_submissions').select('*').order('submitted_at', { ascending: false }),
       supabase.from('submitted_objectives').select('submission_id, type, source'),
+      supabase.from('org_chart').select('full_name, email, manager_name, department, job_title, direct_reports'),
     ])
     setSubmissions(subs ?? [])
+    setOrgChart(org ?? [])
     const grouped = {}
     for (const o of (objs ?? [])) {
       if (!grouped[o.submission_id]) grouped[o.submission_id] = []
@@ -142,6 +165,19 @@ export default function CoverageView({ onEmployeeView, onManagerView, activeTab,
     }
     return () => clearInterval(autoRefreshRef.current)
   }, [autoRefresh])
+
+  // ── C-suite coverage ───────────────────────────────────────────────────
+  const csuiteLeaders = orgChart.filter(e => e.department?.toLowerCase() === 'c-suite')
+  const orgMap        = buildOrgMap(orgChart)
+  const submittedNames = new Set(submissions.map(s => s.employee_name))
+
+  const csuiteAreas = csuiteLeaders.map(leader => {
+    const subtree   = getSubtree(leader.full_name, orgMap)
+    const total     = subtree.length
+    const submitted = subtree.filter(e => submittedNames.has(e.full_name)).length
+    const pctVal    = total > 0 ? Math.round((submitted / total) * 100) : 0
+    return { leader, total, submitted, pct: pctVal }
+  }).sort((a, b) => b.pct - a.pct)
 
   // ── Aggregates ─────────────────────────────────────────────────────────
   const total = submissions.length
@@ -196,11 +232,47 @@ export default function CoverageView({ onEmployeeView, onManagerView, activeTab,
       <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <div>
-            <h1 style={s.heading}>Coverage Dashboard</h1>
-            <p style={s.sub}>2026 Objectives cycle · Real-time submission tracking</p>
-          </div>
+        <div>
+          <h1 style={s.heading}>Coverage Dashboard</h1>
+          <p style={s.sub}>2026 Objectives cycle · Real-time submission tracking</p>
+        </div>
+
+        {/* C-suite area coverage */}
+        {csuiteAreas.length > 0 && (
+          <section>
+            <p style={s.sectionTitle}>Coverage by C-Suite Area</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {csuiteAreas.map(({ leader, total, submitted, pct: p }) => (
+                <div key={leader.full_name} style={s.areaCard}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--tx)' }}>{leader.full_name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--tx2)', marginLeft: 8 }}>{leader.job_title}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 12, color: 'var(--tx2)' }}>{submitted} / {total}</span>
+                      <span style={{
+                        fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)',
+                        color: p >= 80 ? 'var(--ok)' : p >= 50 ? 'var(--warn)' : 'var(--err)',
+                        minWidth: 40, textAlign: 'right',
+                      }}>{p}%</span>
+                    </div>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: 'var(--card-2)', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 3,
+                      width: `${p}%`,
+                      background: p >= 80 ? 'var(--ok)' : p >= 50 ? 'var(--warn)' : 'var(--err)',
+                      transition: 'width 0.6s ease',
+                    }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><div></div>
           <div style={{ textAlign: 'right' }}>
             {lastRefresh && (
               <p style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 6 }}>
@@ -495,10 +567,14 @@ export default function CoverageView({ onEmployeeView, onManagerView, activeTab,
 }
 
 const s = {
-  backLink:    { background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer',
-                 fontSize: 13, padding: 0, marginBottom: 10, display: 'block' },
-  heading:     { fontSize: 26, fontWeight: 700, color: 'var(--tx)', marginBottom: 6 },
-  sub:         { fontSize: 13, color: 'var(--tx2)' },
+  backLink:     { background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer',
+                  fontSize: 13, padding: 0, marginBottom: 10, display: 'block' },
+  heading:      { fontSize: 26, fontWeight: 700, color: 'var(--tx)', marginBottom: 6 },
+  sub:          { fontSize: 13, color: 'var(--tx2)' },
+  sectionTitle: { fontSize: 12, fontWeight: 700, color: 'var(--tx)', marginBottom: 10,
+                  letterSpacing: '0.04em', textTransform: 'uppercase' },
+  areaCard:     { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10,
+                  padding: '14px 16px' },
   refreshBtn:  { background: 'none', border: '1px solid var(--border)', color: 'var(--tx2)',
                  borderRadius: 7, fontSize: 12, padding: '6px 14px', cursor: 'pointer' },
   emptyState:  { textAlign: 'center', padding: '60px 0', background: 'var(--card)',
