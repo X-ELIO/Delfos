@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import Shell from '../components/Shell'
 
-export default function ManagerView({ onBack }) {
+export default function ManagerView({ onBack, onCoverageView }) {
   const [email, setEmail] = useState('')
 
   return (
-    <Shell step={0}>
+    <Shell step={0} onCoverageView={onCoverageView}>
       <div style={{ maxWidth: 480, margin: '0 auto', paddingTop: 60, textAlign: 'center' }}>
 
         <button style={s.backLink} onClick={onBack}>← Back</button>

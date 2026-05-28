@@ -71,12 +71,12 @@ const LOAD_MESSAGES = {
 }
 
 // ── Loading screen ─────────────────────────────────────────────────────────
-function LoadingScreen({ action, elapsed, onSettings, onManagerView }) {
+function LoadingScreen({ action, elapsed, onSettings, onManagerView, onCoverageView }) {
   const msgs  = LOAD_MESSAGES[action] ?? []
   const msg   = [...msgs].reverse().find(([t]) => elapsed >= t)?.[1] ?? ''
   const title = action === 'asking' ? 'Asking Delfos for suggestions…' : 'Scoring your portfolio…'
   return (
-    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView}>
+    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
                     justifyContent: 'center', height: '100%', gap: 20, textAlign: 'center' }}>
         <div style={ls.spinner} />
@@ -97,7 +97,7 @@ const ls = {
 }
 
 // ── Refine screen ──────────────────────────────────────────────────────────
-function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImproved, onRescored, cascade, onSettings, onManagerView }) {
+function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImproved, onRescored, cascade, onSettings, onManagerView, onCoverageView }) {
   const { profile } = useProfile()
   const thresh = getThreshold(profile?.archetype_code)
 
@@ -166,7 +166,7 @@ function RefineScreen({ objectives, onBack, onContinue, onIgnore, onAcceptImprov
   const color  = scoreColor(avg, thresh)
 
   return (
-    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView}>
+    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView}>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
@@ -419,7 +419,7 @@ function downloadBambu(objectives, profile) {
 }
 
 // ── Report screen ──────────────────────────────────────────────────────────
-function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettings, onManagerView }) {
+function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettings, onManagerView, onCoverageView }) {
   const { profile } = useProfile()
   const thresh = getThreshold(profile?.archetype_code)
   const [saving, setSaving] = useState(false)
@@ -444,7 +444,7 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onSettin
   const weakObjs = active.filter(o => (o.score ?? 0) < thresh.min)
 
   return (
-    <Shell step={2} onSettings={onSettings} onManagerView={onManagerView}>
+    <Shell step={2} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView}>
       <div style={{ maxWidth: 700, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── AI-Governed banner ── */}
@@ -789,7 +789,7 @@ const ca = {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
-export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView }) {
+export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, onCoverageView }) {
   const { profile } = useProfile()
 
   const [cascade,          setCascade]          = useState([])
@@ -881,7 +881,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView }
   }
 
   if (phase === 'loading') return (
-    <LoadingScreen action={loadCtx.action} elapsed={loadCtx.elapsed} onSettings={onSettings} onManagerView={onManagerView} />
+    <LoadingScreen action={loadCtx.action} elapsed={loadCtx.elapsed} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView} />
   )
 
   if (phase === 'refine') return (
@@ -890,6 +890,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView }
       cascade={cascade}
       onSettings={onSettings}
       onManagerView={onManagerView}
+      onCoverageView={onCoverageView}
       onBack={() => setPhase('draft')}
       onIgnore={(id) => update(id, 'status', 'ignored')}
       onAcceptImproved={(id, improved) =>
@@ -975,6 +976,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView }
       portfolioSummary={portfolioSummary}
       onSettings={onSettings}
       onManagerView={onManagerView}
+      onCoverageView={onCoverageView}
       onBack={() => setPhase('refine')}
       onSubmit={handleSubmit}
     />
@@ -988,7 +990,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView }
   const canScore      = hasFilled && (!needsTeam || hasTeamObj) && kpiViolations.length === 0
 
   return (
-    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView}>
+    <Shell step={1} onSettings={onSettings} onManagerView={onManagerView} onCoverageView={onCoverageView}>
       <div style={ds.page}>
 
         {/* Bonus info banner */}

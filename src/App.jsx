@@ -4,6 +4,7 @@ import ProfileSetup from './screens/ProfileSetup'
 import ObjectiveDraft from './screens/ObjectiveDraft'
 import Settings from './screens/Settings'
 import ManagerView from './screens/ManagerView'
+import CoverageView from './screens/CoverageView'
 import Shell from './components/Shell'
 
 function Submitted({ objectives }) {
@@ -36,12 +37,14 @@ function Router() {
 
   const goSettings   = () => setScreen('settings')
   const goManager    = () => setScreen('manager')
+  const goCoverage   = () => setScreen('coverage')
   const goObjectives = () => setScreen('objectives')
 
   if (screen === 'settings') return <Settings onBack={goObjectives} />
-  if (screen === 'manager')  return <ManagerView onBack={goObjectives} />
+  if (screen === 'manager')  return <ManagerView onBack={goObjectives} onCoverageView={goCoverage} />
+  if (screen === 'coverage') return <CoverageView onBack={goObjectives} onManagerView={goManager} />
 
-  if (!profile) return <ProfileSetup onManagerView={goManager} />
+  if (!profile) return <ProfileSetup onManagerView={goManager} onCoverageView={goCoverage} />
 
   if (screen === 'objectives')
     return (
@@ -53,6 +56,7 @@ function Router() {
         }}
         onSettings={goSettings}
         onManagerView={goManager}
+        onCoverageView={goCoverage}
       />
     )
 

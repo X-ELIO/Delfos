@@ -1,6 +1,6 @@
 const STEPS = ['Role', 'Objectives', 'Report']
 
-export default function Shell({ children, step = 0, bonusChip = null, onSettings = null, onManagerView = null }) {
+export default function Shell({ children, step = 0, bonusChip = null, onSettings = null, onManagerView = null, onCoverageView = null }) {
   return (
     <div style={s.root}>
       <div style={s.body}>
@@ -17,6 +17,9 @@ export default function Shell({ children, step = 0, bonusChip = null, onSettings
               <button style={{ ...s.tab, ...s.tabActive }}>Employee</button>
               {onManagerView && (
                 <button style={s.tab} onClick={onManagerView}>Manager</button>
+              )}
+              {onCoverageView && (
+                <button style={s.tab} onClick={onCoverageView}>Coverage</button>
               )}
             </div>
 
