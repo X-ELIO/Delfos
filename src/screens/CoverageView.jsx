@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import Shell from '../components/Shell'
 import { ARCHETYPE_THRESHOLDS } from '../lib/constants'
@@ -80,12 +80,40 @@ function StatusPill({ status }) {
   )
 }
 
+// ── CSV export ─────────────────────────────────────────────────────────────
+function downloadCsv(submissions) {
+  const headers = ['Employee', 'Job Title', 'Department', 'Archetype', 'Country', 'Score', 'Status', 'Submitted At', 'AI Objectives', 'Manual Objectives', 'Improved']
+  const rows = submissions.map(s => [
+    s.employee_name ?? '',
+    s.job_title ?? '',
+    s.department ?? '',
+    s.archetype_code ?? '',
+    s.country_label ?? '',
+    s.portfolio_score != null ? s.portfolio_score : '',
+    s.status ?? '',
+    s.submitted_at ? new Date(s.submitted_at).toISOString().slice(0, 10) : '',
+    s.objectives_ai ?? 0,
+    s.objectives_manual ?? 0,
+    s.objectives_improved ?? 0,
+  ])
+  const csv = [headers, ...rows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = Object.assign(document.createElement('a'), { href: url, download: `delfos_coverage_${new Date().toISOString().slice(0,10)}.csv` })
+  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 export default function CoverageView({ onBack, onManagerView }) {
   const [loading,          setLoading]          = useState(true)
   const [submissions,      setSubmissions]      = useState([])
   const [objBySubmission,  setObjBySubmission]  = useState({})
   const [lastRefresh,      setLastRefresh]      = useState(null)
+  const [autoRefresh,      setAutoRefresh]      = useState(false)
+  const autoRefreshRef = useRef(null)
 
   async function load() {
     setLoading(true)
@@ -105,6 +133,15 @@ export default function CoverageView({ onBack, onManagerView }) {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (autoRefresh) {
+      autoRefreshRef.current = setInterval(load, 30000)
+    } else {
+      clearInterval(autoRefreshRef.current)
+    }
+    return () => clearInterval(autoRefreshRef.current)
+  }, [autoRefresh])
 
   // ── Aggregates ─────────────────────────────────────────────────────────
   const total = submissions.length
@@ -171,9 +208,22 @@ export default function CoverageView({ onBack, onManagerView }) {
                 Last refresh: {lastRefresh.toLocaleTimeString()}
               </p>
             )}
-            <button style={s.refreshBtn} onClick={load} disabled={loading}>
-              {loading ? '⏳ Loading…' : '↺ Refresh'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {submissions.length > 0 && (
+                <button style={s.refreshBtn} onClick={() => downloadCsv(submissions)}>
+                  ⬇ Export CSV
+                </button>
+              )}
+              <button style={s.refreshBtn} onClick={load} disabled={loading}>
+                {loading ? '⏳ Loading…' : '↺ Refresh'}
+              </button>
+              <button
+                onClick={() => setAutoRefresh(a => !a)}
+                style={{ ...s.refreshBtn, borderColor: autoRefresh ? 'var(--ok)' : 'var(--border)',
+                         color: autoRefresh ? 'var(--ok)' : 'var(--tx2)' }}>
+                {autoRefresh ? '● Auto 30s' : '○ Auto'}
+              </button>
+            </div>
           </div>
         </div>
 

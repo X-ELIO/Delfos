@@ -10,7 +10,15 @@ Deno.serve(async (req) => {
     const { profile, objectives, cascade } = await req.json()
 
     const corporateItems = (cascade ?? []).filter((c: any) => c.scope === 'corporate').slice(0, 8)
-    const cascadeSummary = corporateItems.map((c: any) => `- ${c.text}`).join('\n')
+    const countryItems   = (cascade ?? []).filter((c: any) => c.scope === 'country')
+    const cascadeSummary = [
+      corporateItems.length > 0
+        ? 'CORPORATE:\n' + corporateItems.map((c: any) => `- ${c.text}`).join('\n')
+        : '',
+      countryItems.length > 0
+        ? `${(profile.country_label ?? 'COUNTRY').toUpperCase()}:\n` + countryItems.map((c: any) => `- ${c.text}${c.weight_percent ? ` (${c.weight_percent}%)` : ''}`).join('\n')
+        : '',
+    ].filter(Boolean).join('\n\n')
 
     const objectivesList = objectives.map((o: any, i: number) =>
       `OBJ ${i + 1} [${o.type}]:\nTitle: ${o.title}\nDescription: ${o.description ?? ''}${o.key_results?.length ? '\nKRs: ' + o.key_results.join(' | ') : ''}`
@@ -75,7 +83,7 @@ Return ONLY a valid JSON object, no markdown, no explanation:
     const userPrompt = `Employee: ${profile.full_name} | ${profile.archetype_code} — ${profile.archetype_label}
 Job: ${profile.job_title || 'N/A'} | ${profile.department || 'N/A'} | ${profile.country_label ?? 'Corporate'}
 
-Corporate cascade:
+Strategic cascade:
 ${cascadeSummary || 'Not available'}
 
 Objectives to score:

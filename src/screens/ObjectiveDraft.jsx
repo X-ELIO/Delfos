@@ -314,7 +314,7 @@ const rs = {
                  letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 4 },
   delfosBadge: { background: 'var(--ac)', color: '#fff', fontSize: 10, fontWeight: 700,
                  letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4 },
-  teamBadge:   { background: 'var(--err)', color: '#fff', fontSize: 10, fontWeight: 700,
+  teamBadge:   { background: '#7c3aed', color: '#fff', fontSize: 10, fontWeight: 700,
                  letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4 },
   learnBadge:  { background: '#2563eb', color: '#fff', fontSize: 10, fontWeight: 700,
                  letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 4 },
@@ -757,7 +757,9 @@ function CascadeAccordion({ cascade, country_label }) {
               <p style={{ ...ca.groupLabel, marginTop: 12 }}>{country_label?.toUpperCase()}</p>
               {country.map(item => (
                 <div key={item.id} style={ca.item}>
-                  <span style={{ color: 'var(--tx2)', fontSize: 10 }}>◉</span>
+                  <span style={{ color: item.locked ? 'var(--tx2)' : 'var(--ac)', fontSize: 10 }}>
+                    {item.locked ? '🔒' : '✏'}
+                  </span>
                   <span style={ca.itemText}>{item.text}</span>
                   {item.weight_percent && <span style={ca.weight}>{item.weight_percent}%</span>}
                 </div>
@@ -855,8 +857,22 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
     try {
       const result  = await scoreObjectives({ profile, objectives: filled, cascade })
       stopTimer()
-      const scored  = result?.objectives ?? result
+      let scored  = result?.objectives ?? result
       const summary = result?.summary ?? ''
+
+      // Normalise weights to exactly 100 if the model drifted
+      const weightSum = scored.reduce((s, o) => s + (o.weight ?? 0), 0)
+      if (weightSum > 0 && weightSum !== 100) {
+        const scale = 100 / weightSum
+        let remaining = 100
+        scored = scored.map((o, i) => {
+          if (i === scored.length - 1) return { ...o, weight: remaining }
+          const w = Math.round((o.weight ?? 0) * scale)
+          remaining -= w
+          return { ...o, weight: w }
+        })
+      }
+
       setObjectives(scored)
       setPortfolioSummary(summary)
       setPhase('refine')
@@ -1005,7 +1021,14 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
           </div>
         </div>
 
-        <p style={ds.stepBadge}>STEP 02</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <p style={ds.stepBadge}>STEP 02</p>
+          <button style={ds.editProfileBtn} onClick={() => {
+            if (window.confirm('Edit your role profile? Your current objectives will be cleared.')) {
+              onNavigate('profile')
+            }
+          }}>✎ Edit profile</button>
+        </div>
         <h1 style={ds.heading}>Set Your Objectives</h1>
 
         {/* Cascade accordion */}
@@ -1055,7 +1078,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
                         style={{
                           ...ds.typeBtn,
                           background: obj.type === t
-                            ? (t === 'team' ? 'var(--err)' : t === 'learning' ? '#2563eb' : 'var(--ac)')
+                            ? (t === 'team' ? '#7c3aed' : t === 'learning' ? '#2563eb' : 'var(--ac)')
                             : 'var(--card-2)',
                           color: obj.type === t ? '#fff' : 'var(--tx2)',
                         }}>
@@ -1089,11 +1112,34 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
                       placeholder={ph.title} />
                   </div>
                   <div>
-                    <label style={ds.fieldLabel}>Description, KRs &amp; Timeline</label>
-                    <textarea style={{ ...ds.input, minHeight: 80, resize: 'vertical' }}
+                    <label style={ds.fieldLabel}>Description</label>
+                    <textarea style={{ ...ds.input, minHeight: 60, resize: 'vertical' }}
                       value={obj.description}
                       onChange={e => update(obj.id, 'description', e.target.value)}
                       placeholder={ph.description} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={ds.fieldLabel}>By when</label>
+                      <input style={ds.input}
+                        value={obj.by_when ?? ''}
+                        onChange={e => update(obj.id, 'by_when', e.target.value)}
+                        placeholder="e.g. Q3 2026" />
+                    </div>
+                    <div>
+                      <label style={ds.fieldLabel}>Primary metric &amp; target</label>
+                      <input style={ds.input}
+                        value={obj.metric ?? ''}
+                        onChange={e => update(obj.id, 'metric', e.target.value)}
+                        placeholder="e.g. Turnover from 14% to <10%" />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={ds.fieldLabel}>Key Results (one per line)</label>
+                    <textarea style={{ ...ds.input, minHeight: 60, resize: 'vertical' }}
+                      value={(obj.key_results ?? []).join('\n')}
+                      onChange={e => update(obj.id, 'key_results', e.target.value.split('\n').filter(Boolean))}
+                      placeholder={'KR1: ...\nKR2: ...\nKR3: ...'} />
                   </div>
                 </div>
               </div>
@@ -1109,7 +1155,11 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onManagerView, 
         )}
 
         <div style={ds.footer}>
-          <button style={ds.backBtn} onClick={() => onNavigate('profile')}>← Back</button>
+          <button style={ds.backBtn} onClick={() => {
+            if (window.confirm('Go back to Role Setup? Your current objectives will be cleared.')) {
+              onNavigate('profile')
+            }
+          }}>← Back</button>
           <div style={{ display: 'flex', gap: 10 }}>
             <button style={ds.aiBtn} onClick={handleAskDelfos}>
               ✦ Ask Delfos for suggestions
@@ -1154,8 +1204,8 @@ const ds = {
                    fontSize: 12, padding: '4px 6px' },
   learnBanner:   { background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)',
                    borderRadius: 6, padding: '7px 11px', fontSize: 12, color: '#60a5fa' },
-  teamBanner:    { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                   borderRadius: 6, padding: '7px 11px', fontSize: 12, color: 'var(--err)' },
+  teamBanner:    { background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.25)',
+                   borderRadius: 6, padding: '7px 11px', fontSize: 12, color: '#a78bfa' },
   fieldLabel:    { display: 'block', fontSize: 11, color: 'var(--tx2)', marginBottom: 5 },
   input:         { width: '100%', background: 'var(--card-2)', border: '1px solid var(--border)',
                    borderRadius: 8, color: 'var(--tx)', fontSize: 14, padding: '9px 12px',
@@ -1171,4 +1221,6 @@ const ds = {
                    borderRadius: 8, cursor: 'pointer' },
   scoreBtn:      { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
                    fontSize: 14, fontWeight: 600, padding: '9px 20px', cursor: 'pointer' },
+  editProfileBtn:{ background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 11,
+                   cursor: 'pointer', padding: '2px 0', textDecoration: 'underline', textDecorationStyle: 'dotted' },
 }

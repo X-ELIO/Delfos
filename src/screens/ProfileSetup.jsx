@@ -42,10 +42,14 @@ export default function ProfileSetup({ onManagerView, onCoverageView }) {
   const [ref, setRef]   = useState({ countries: [], managers: [] })
   const [loading, setLoading] = useState(true)
 
-  const [form, setForm] = useState({
-    full_name: '', job_title: '', department: '',
-    manager_id: '', country_code: '', country_other: '', archetype_code: '',
-    current_priorities: '',
+  const DRAFT_KEY = 'delfos_profile_draft'
+
+  const [form, setForm] = useState(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY)
+      if (saved) return JSON.parse(saved)
+    } catch (_) {}
+    return { full_name: '', job_title: '', department: '', manager_id: '', country_code: '', country_other: '', archetype_code: '', current_priorities: '' }
   })
 
   useEffect(() => {
@@ -60,7 +64,13 @@ export default function ProfileSetup({ onManagerView, onCoverageView }) {
     load()
   }, [])
 
-  function set(field, value) { setForm(f => ({ ...f, [field]: value })) }
+  function set(field, value) {
+    setForm(f => {
+      const next = { ...f, [field]: value }
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(next)) } catch (_) {}
+      return next
+    })
+  }
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -69,6 +79,7 @@ export default function ProfileSetup({ onManagerView, onCoverageView }) {
     const arch    = ARCHETYPE_META[form.archetype_code]
     const countryCode  = form.country_code === 'other' ? 'other' : (country?.code ?? null)
     const countryLabel = form.country_code === 'other' ? (form.country_other.trim() || 'Other') : (country?.label ?? null)
+    try { localStorage.removeItem(DRAFT_KEY) } catch (_) {}
     saveProfile({
       full_name:         form.full_name.trim(),
       job_title:         form.job_title.trim(),

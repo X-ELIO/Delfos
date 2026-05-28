@@ -10,7 +10,15 @@ Deno.serve(async (req) => {
     const { profile, objective, cascade, feedback } = await req.json()
 
     const corporateItems = (cascade ?? []).filter((c: any) => c.scope === 'corporate').slice(0, 6)
-    const cascadeSummary = corporateItems.map((c: any) => `- ${c.text}`).join('\n')
+    const countryItems   = (cascade ?? []).filter((c: any) => c.scope === 'country')
+    const cascadeSummary = [
+      corporateItems.length > 0
+        ? 'CORPORATE:\n' + corporateItems.map((c: any) => `- ${c.text}`).join('\n')
+        : '',
+      countryItems.length > 0
+        ? `${(profile.country_label ?? 'COUNTRY').toUpperCase()}:\n` + countryItems.map((c: any) => `- ${c.text}`).join('\n')
+        : '',
+    ].filter(Boolean).join('\n\n')
 
     const systemPrompt = `You are Delfos, an AI performance management engine for X-ELIO.
 Your job is to rewrite a single objective to improve its quality and Bonus Potential score.
@@ -27,7 +35,7 @@ Return ONLY a valid JSON object, no markdown:
 
     const userPrompt = `Employee: ${profile.full_name} | ${profile.archetype_code} — ${profile.archetype_label} | ${profile.country_label ?? 'Corporate'}
 
-Corporate cascade:
+Strategic cascade:
 ${cascadeSummary || 'Not available'}
 
 Current objective (score: ${objective.score ?? 'unscored'}):
