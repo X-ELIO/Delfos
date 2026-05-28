@@ -34,14 +34,14 @@ function Router() {
   const [screen,  setScreen]  = useState('objectives')
   const [payload, setPayload] = useState(null)
 
-  if (!profile) return <ProfileSetup />
-
-  const goSettings    = () => setScreen('settings')
-  const goManager     = () => setScreen('manager')
-  const goObjectives  = () => setScreen('objectives')
+  const goSettings   = () => setScreen('settings')
+  const goManager    = () => setScreen('manager')
+  const goObjectives = () => setScreen('objectives')
 
   if (screen === 'settings') return <Settings onBack={goObjectives} />
   if (screen === 'manager')  return <ManagerView onBack={goObjectives} />
+
+  if (!profile) return <ProfileSetup onManagerView={goManager} />
 
   if (screen === 'objectives')
     return (
