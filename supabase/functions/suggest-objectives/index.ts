@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { profile, cascade, priorities, today } = await req.json()
+    const { profile, cascade, priorities, today, typePreference } = await req.json()
     const currentDate = today ?? new Date().toISOString().split('T')[0]
     const currentYear = currentDate.slice(0, 4)
     const currentMonth = parseInt(currentDate.slice(5, 7))
@@ -24,6 +24,12 @@ Deno.serve(async (req) => {
     const futureQuarters = ['Q1','Q2','Q3','Q4'].filter(q => q > currentQuarter).map(q => `${q} ${currentYear}`).concat([`Q1 ${parseInt(currentYear)+1}`])
 
     const isManager = profile.archetype_code === 'A' || profile.archetype_code === 'B'
+    const pref = (typePreference ?? 'performance') as string
+    const compositionNote = pref === 'learning'
+      ? (isManager ? '2 performance + 2 learning + 1 team' : '2 performance + 3 learning')
+      : pref === 'team'
+      ? (isManager ? '2 performance + 1 learning + 2 team' : '3 performance + 2 learning (team N/A for ICs, using extra learning)')
+      : (isManager ? '3 performance + 1 learning + 1 team (default)' : '4 performance + 1 learning (default)')
 
     const corporateItems = (cascade ?? []).filter((c: any) => c.scope === 'corporate')
     const countryItems   = (cascade ?? []).filter((c: any) => c.scope === 'country')
@@ -74,6 +80,11 @@ Today is ${currentDate} (${currentQuarter} ${currentYear}). All deadlines MUST b
 ## Rules for Archetype C and D (individual contributors)
 - Do NOT include any "team" type objectives. Use only "performance" and "learning".
 - Suggested composition: at least 3 performance and at least 1 learning.
+
+## Composition preference
+The user has requested a focus on: "${typePreference ?? 'performance'}" objectives.
+Target composition based on this preference: ${compositionNote}
+Respect this preference while still applying all archetype rules above (e.g. A/B must always have at least 1 team, C/D must never have team).
 
 ## CRITICAL — People KPI exclusion (applies to ALL archetypes)
 The following are MANDATORY KPIs tracked separately by HR. NEVER generate an objective that duplicates, rephrases, or is primarily about these metrics:

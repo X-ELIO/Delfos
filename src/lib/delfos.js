@@ -21,8 +21,8 @@ async function invoke(fn, body) {
 
 const today = () => new Date().toISOString().split('T')[0]
 
-export async function suggestObjectives({ profile, cascade, priorities }) {
-  return invoke('suggest-objectives', { profile, cascade, priorities, today: today() })
+export async function suggestObjectives({ profile, cascade, priorities, typePreference }) {
+  return invoke('suggest-objectives', { profile, cascade, priorities, typePreference, today: today() })
 }
 
 export async function scoreObjectives({ profile, objectives, cascade }) {
