@@ -4,7 +4,7 @@ const STEPS = ['Role', 'Objectives', 'Report']
 
 function ThemeToggle() {
   const [theme, setTheme] = useState(() => {
-    try { return document.documentElement.getAttribute('data-theme') || 'dark' } catch { return 'dark' }
+    try { return document.documentElement.getAttribute('data-theme') || 'light' } catch { return 'light' }
   })
   function toggle() {
     const next = theme === 'dark' ? 'light' : 'dark'
