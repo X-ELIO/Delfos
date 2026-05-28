@@ -27,7 +27,7 @@ function ThemeToggle() {
   )
 }
 
-export default function Shell({ children, step = 0, bonusChip = null, onSettings = null, onManagerView = null, onCoverageView = null }) {
+export default function Shell({ children, step = 0, bonusChip = null, onSettings = null, onManagerView = null, onCoverageView = null, onLogout = null }) {
   return (
     <div style={s.root}>
       <div style={s.body}>
@@ -96,6 +96,11 @@ export default function Shell({ children, step = 0, bonusChip = null, onSettings
             {onSettings && (
               <button onClick={onSettings} style={s.gearBtn} title="Settings">⚙</button>
             )}
+
+            {/* Sign out */}
+            {onLogout && (
+              <button onClick={onLogout} style={s.signOutBtn} title="Sign out">↩</button>
+            )}
           </div>
         </header>
 
@@ -152,7 +157,10 @@ const s = {
   themeBtn:  { background: 'none', border: '1px solid var(--border-mid)', color: 'var(--tx2)',
                cursor: 'pointer', padding: '5px 7px', borderRadius: 7,
                display: 'flex', alignItems: 'center', transition: 'border-color 0.15s, color 0.15s' },
-  gearBtn:   { background: 'none', border: '1px solid var(--border-mid)', color: 'var(--tx2)',
+  gearBtn:    { background: 'none', border: '1px solid var(--border-mid)', color: 'var(--tx2)',
+               fontSize: 14, cursor: 'pointer', padding: '4px 7px', borderRadius: 7,
+               lineHeight: 1, transition: 'color 0.15s' },
+  signOutBtn: { background: 'none', border: '1px solid var(--border-mid)', color: 'var(--tx2)',
                fontSize: 14, cursor: 'pointer', padding: '4px 7px', borderRadius: 7,
                lineHeight: 1, transition: 'color 0.15s' },
 
