@@ -662,12 +662,21 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
       if (!generated.length) throw new Error('Delfos no generó objetivos. Inténtalo de nuevo.')
       collected.push(...generated)
       stopTimer()
-      startTimer('scoring')
-      const scoreResult = await scoreObjectives({ profile, objectives: collected, cascade })
-      stopTimer()
-      const scored = Array.isArray(scoreResult?.objectives) ? scoreResult.objectives : []
-      setObjectives(collected.map((o, i) => ({ ...o, ...(scored[i] ?? {}) })))
-      setPortfolioSummary(scoreResult?.summary ?? '')
+      const scoreable = collected.filter(o => o.type !== 'learning')
+      let finalObjs = collected.map(o => ({ ...o, score: null }))
+      if (scoreable.length) {
+        startTimer('scoring')
+        const scoreResult = await scoreObjectives({ profile, objectives: scoreable, cascade })
+        stopTimer()
+        const scored = Array.isArray(scoreResult?.objectives) ? scoreResult.objectives : []
+        const scoreById = new Map(scoreable.map((o, i) => [o.id, scored[i]]))
+        finalObjs = collected.map(o => {
+          const sc = scoreById.get(o.id)
+          return sc ? { ...o, ...sc } : { ...o, score: null }
+        })
+        setPortfolioSummary(scoreResult?.summary ?? '')
+      }
+      setObjectives(finalObjs)
       setPhase('draft')
     } catch (err) {
       stopTimer()
@@ -684,9 +693,13 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
       const otherTitles = objectives.filter(o => o.id !== obj.id && o.title?.trim()).map(o => o.title)
       const improved = await improveObjective({ profile, objective: obj, cascade, otherTitles })
       setDraftImproving(p => ({ ...p, [obj.id]: 'scoring' }))
-      const sr = await scoreObjectives({ profile, objectives: [{ ...obj, ...improved }], cascade })
-      const sc = (sr?.objectives ?? sr)?.[0]
-      setDraftProposals(p => ({ ...p, [obj.id]: { ...improved, score: sc?.score ?? null } }))
+      const proposalType = improved.type ?? obj.type
+      let proposalScore = null
+      if (proposalType !== 'learning') {
+        const sr = await scoreObjectives({ profile, objectives: [{ ...obj, ...improved }], cascade })
+        proposalScore = (sr?.objectives ?? sr)?.[0]?.score ?? null
+      }
+      setDraftProposals(p => ({ ...p, [obj.id]: { ...improved, score: proposalScore } }))
     } catch (err) {
       console.error('draft improve error:', err)
     } finally {
@@ -703,10 +716,13 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
       const skeleton = { type, title: '', description: '', key_results: [],
         feedback: `Generate a completely new ${type} objective from scratch. Do not reference any previous objective.` }
       const generated = await improveObjective({ profile, objective: skeleton, cascade, otherTitles })
-      setDraftImproving(p => ({ ...p, [obj.id]: 'scoring' }))
-      const sr = await scoreObjectives({ profile, objectives: [{ ...generated, type }], cascade })
-      const sc = (sr?.objectives ?? sr)?.[0]
-      setDraftProposals(p => ({ ...p, [obj.id]: { ...generated, type, score: sc?.score ?? null } }))
+      let regenScore = null
+      if (type !== 'learning') {
+        setDraftImproving(p => ({ ...p, [obj.id]: 'scoring' }))
+        const sr = await scoreObjectives({ profile, objectives: [{ ...generated, type }], cascade })
+        regenScore = (sr?.objectives ?? sr)?.[0]?.score ?? null
+      }
+      setDraftProposals(p => ({ ...p, [obj.id]: { ...generated, type, score: regenScore } }))
     } catch (err) {
       console.error('draft regen error:', err)
     } finally {
@@ -727,34 +743,39 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
     setDraftProposals(p => { const n = { ...p }; delete n[objId]; return n })
   }
 
-  // ── handleScoreWith: score given objectives → 'report' ──
+  // ── handleScoreWith: score non-learning objectives → 'report' ──
   async function handleScoreWith(toScore) {
-    const filled = toScore.filter(o => o.title?.trim())
+    const filled     = toScore.filter(o => o.title?.trim())
     if (!filled.length) return
-
-    const allScored = filled.every(o => o.score != null)
-    if (allScored) { setPhase('report'); return }
+    const scoreable  = filled.filter(o => o.type !== 'learning')
+    const allScored  = scoreable.every(o => o.score != null)
+    if (!scoreable.length || allScored) { setPhase('report'); return }
 
     setPhase('loading'); startTimer('scoring')
     try {
-      const result  = await scoreObjectives({ profile, objectives: filled, cascade })
+      const result  = await scoreObjectives({ profile, objectives: scoreable, cascade })
       stopTimer()
-      let scored    = result?.objectives ?? result
-      const summary = result?.summary ?? ''
+      let scoredList = Array.isArray(result?.objectives) ? result.objectives : []
+      const summary  = result?.summary ?? ''
 
-      const weightSum = scored.reduce((s, o) => s + (o.weight ?? 0), 0)
+      const weightSum = scoredList.reduce((s, o) => s + (o.weight ?? 0), 0)
       if (weightSum > 0 && weightSum !== 100) {
         const scale = 100 / weightSum
         let remaining = 100
-        scored = scored.map((o, i) => {
-          if (i === scored.length - 1) return { ...o, weight: remaining }
+        scoredList = scoredList.map((o, i) => {
+          if (i === scoredList.length - 1) return { ...o, weight: remaining }
           const w = Math.round((o.weight ?? 0) * scale)
           remaining -= w
           return { ...o, weight: w }
         })
       }
 
-      setObjectives(scored)
+      const scoreById = new Map(scoreable.map((o, i) => [o.id, scoredList[i]]))
+      const merged = filled.map(o => {
+        const sc = scoreById.get(o.id)
+        return sc ? { ...o, ...sc } : { ...o, score: null }
+      })
+      setObjectives(merged)
       setPortfolioSummary(summary)
       setPhase('report')
     } catch (err) {
@@ -768,6 +789,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
   async function handleScore() { await handleScoreWith(objectives) }
 
   async function handleCardRescore(obj) {
+    if (obj.type === 'learning') return
     setDraftRescoring(p => ({ ...p, [obj.id]: true }))
     try {
       const sr = await scoreObjectives({ profile, objectives: [obj], cascade })
@@ -993,8 +1015,8 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
             const ph = PLACEHOLDERS[obj.type] ?? PLACEHOLDERS.performance
             return (
               <div key={obj.id} style={{ ...ds.objCard, animation: obj.source === 'delfos' ? 'objIn 0.4s ease' : undefined }}>
-                {/* Score at top center */}
-                {obj.score != null && (
+                {/* Score at top center — learning objectives never show % */}
+                {obj.score != null && obj.type !== 'learning' && (
                   <div style={{ textAlign: 'center', paddingBottom: 10,
                                 borderBottom: '1px solid var(--border)', marginBottom: 2 }}>
                     <span style={{ fontSize: 28, fontWeight: 800, lineHeight: 1,
@@ -1096,12 +1118,14 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
                         : draftImproving[obj.id] === 'scoring' ? '⏳ Puntuando…'
                         : '✦ Mejorar'}
                     </button>
-                    <button
-                      style={{ ...ds.aiBtn, fontSize: 12, padding: '5px 12px' }}
-                      disabled={!!draftImproving[obj.id] || draftRescoring[obj.id] || !obj.title?.trim()}
-                      onClick={() => handleCardRescore(obj)}>
-                      {draftRescoring[obj.id] ? '⏳ Puntuando…' : '◎ Re-puntuar'}
-                    </button>
+                    {obj.type !== 'learning' && (
+                      <button
+                        style={{ ...ds.aiBtn, fontSize: 12, padding: '5px 12px' }}
+                        disabled={!!draftImproving[obj.id] || draftRescoring[obj.id] || !obj.title?.trim()}
+                        onClick={() => handleCardRescore(obj)}>
+                        {draftRescoring[obj.id] ? '⏳ Puntuando…' : '◎ Re-puntuar'}
+                      </button>
+                    )}
                   </div>
 
                   {draftRegenPicker[obj.id] && !draftImproving[obj.id] && (
