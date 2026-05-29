@@ -62,9 +62,17 @@ Today is ${currentDate} (${currentQuarter} ${currentYear}). All deadlines MUST b
    Use the company and country strategic priorities as inspiration. At least 3 of the 5 objectives should connect to a cascade item — but the connection must feel natural for the role, not forced.
 
 ## Objective types
-- performance: individual delivery, business metrics, project outcomes
-- learning: skill acquisition, certifications, knowledge development
-- team: people management outcomes — ONLY for Archetype A or B (people managers)
+
+**performance** — individual delivery, business metrics, project outcomes. The title names a business result with a measurable target (e.g. "Reduce time-to-hire from 45 to 30 days by Q3 2026"). KRs are milestones toward that result.
+
+**learning** — personal skill development, knowledge acquisition, certifications. CRITICAL RULES for learning objectives:
+- The title must describe a SKILL or KNOWLEDGE gained, not a business outcome (e.g. "Complete PMP certification", "Develop advanced Python data-analysis skills", "Build expertise in EU energy regulation").
+- The description explains WHY this skill matters for the role and HOW it will be applied once acquired.
+- KRs are learning milestones: course completed, certification passed, knowledge applied in a project, etc. — NOT business KPIs.
+- The metric field should reference completion of learning (e.g. "PMP certification achieved by Q2 2026"), NOT a business metric.
+- Do NOT write a learning objective that looks like a performance objective with a course attached to it.
+
+**team** — people management outcomes — ONLY for Archetype A or B (people managers)
 
 ## Archetype guidance
 - A (Strategic Leadership / C-Suite / VPs / Directors): strategic initiatives, organisational transformation, business outcomes at scale, P&L ownership
