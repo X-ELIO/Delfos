@@ -1174,13 +1174,14 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <span style={ds.objNumBadge}>OBJ {i + 1}</span>
                     {obj.source === 'delfos' && <span style={rs.delfosBadge}>DELFOS</span>}
-                    {obj.score != null && (
-                      <span style={{ fontSize: 13, fontWeight: 700,
-                                     color: scoreColor(obj.score, getThreshold(profile?.archetype_code)) }}>
-                        {obj.score}%
-                      </span>
-                    )}
                   </div>
+                  {obj.score != null && (
+                    <span style={{ fontSize: 20, fontWeight: 800, position: 'absolute', left: '50%',
+                                   transform: 'translateX(-50%)',
+                                   color: scoreColor(obj.score, getThreshold(profile?.archetype_code)) }}>
+                      {obj.score}%
+                    </span>
+                  )}
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     {['performance', 'learning', 'team'].map(t => (
                       <button key={t} onClick={() => update(obj.id, 'type', t)}
@@ -1318,7 +1319,7 @@ const ds = {
   heading:       { fontSize: 26, fontWeight: 400, color: 'var(--tx)', marginBottom: 4 },
   objCard:       { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12,
                    padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
-  objCardHead:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  objCardHead:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' },
   objNumBadge:   { background: 'var(--card-2)', color: 'var(--tx2)', fontSize: 10, fontWeight: 700,
                    letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 4 },
   typeBtn:       { fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 5,
