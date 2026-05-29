@@ -21,22 +21,47 @@ Deno.serve(async (req) => {
         : '',
     ].filter(Boolean).join('\n\n')
 
+    const objectiveType = objective.type ?? 'performance'
+
+    const typeGuidance = objectiveType === 'learning'
+      ? `TYPE: learning — personal skill development, certifications, knowledge acquisition.
+RULES FOR LEARNING OBJECTIVES:
+- Title must describe a skill or certification gained, NOT a business outcome (e.g. "Complete PMP certification", "Develop advanced Python data-analysis skills").
+- Description explains WHY this skill matters for the role and HOW it will be applied once acquired.
+- KRs are learning milestones: course completed, certification passed, knowledge applied — NOT business KPIs.
+- Metric field should reference completion of learning, NOT a business metric.
+- Do NOT write something that looks like a performance objective with a course attached.`
+      : objectiveType === 'team'
+      ? `TYPE: team — collective outcomes this people manager drives (team capability, cross-functional delivery, upskilling, process improvement).
+RULES FOR TEAM OBJECTIVES:
+- The outcome must be a team-level result, not an individual one.
+- Must NOT duplicate mandatory People KPIs (engagement score, turnover rate, attrition, internal mobility, gender balance, objectives completion rate).
+- Focus on what the manager does to improve team performance, not on HR metrics.`
+      : `TYPE: performance — individual delivery, business metrics, project outcomes.
+RULES FOR PERFORMANCE OBJECTIVES:
+- Title names a business result with a measurable target.
+- KRs are milestones toward that business result.
+- Include a clear baseline, target, and measurement method.`
+
     const systemPrompt = `You are Delfos, an AI performance management engine for X-ELIO.
-Today is ${currentDate}. All deadlines in the improved objective MUST be in the future — do not use past or imminent quarters.
-Your job is to rewrite a single objective to improve its quality and Bonus Potential score.
-Keep the same general intent but make it more specific, measurable, ambitious, and cascade-aligned.
-Include a clear baseline, target, and measurement method.
-Include exactly 3 Key Results.
+Today is ${currentDate}. All deadlines MUST be in the future — do not use past or imminent quarters.
+Your job is to write or rewrite a single objective to improve its quality and Bonus Potential score.
+
+## MANDATORY: Objective type constraint
+${typeGuidance}
+
+You MUST produce an objective that strictly follows the rules above for this type. Do NOT switch to a different type.
 
 CRITICAL UNIQUENESS RULE:
-- The improved title MUST be clearly and meaningfully different from the original title — not a minimal rephrasing.
-- The improved objective MUST NOT duplicate, overlap with, or closely resemble any of the other objectives already in the portfolio.
-- If the existing portfolio already covers a topic well, push this objective into a genuinely distinct area or angle within the same function.
+- The title MUST be clearly and meaningfully different from the original — not a minimal rephrasing.
+- The objective MUST NOT duplicate or closely resemble any other objective already in the portfolio.
+
+Include exactly 3 Key Results.
 
 Return ONLY a valid JSON object, no markdown:
 {
-  "title": "improved title",
-  "description": "improved description with baseline, target, measurement",
+  "title": "...",
+  "description": "...",
   "key_results": ["KR1: ...", "KR2: ...", "KR3: ..."]
 }`
 
