@@ -682,9 +682,9 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
       const otherTitles = objectives.filter(o => o.id !== obj.id && o.title?.trim()).map(o => o.title)
       const improved = await improveObjective({ profile, objective: obj, cascade, otherTitles })
       setDraftImproving(p => ({ ...p, [obj.id]: 'scoring' }))
-      const scoreResult = await scoreObjectives({ profile, objectives: [{ ...obj, ...improved }], cascade })
-      const scored = (scoreResult?.objectives ?? scoreResult)?.[0]
-      setDraftProposals(p => ({ ...p, [obj.id]: { ...improved, score: scored?.score ?? null } }))
+      const sr = await scoreObjectives({ profile, objectives: [{ ...obj, ...improved }], cascade })
+      const sc = (sr?.objectives ?? sr)?.[0]
+      setDraftProposals(p => ({ ...p, [obj.id]: { ...improved, score: sc?.score ?? null } }))
     } catch (err) {
       console.error('draft improve error:', err)
     } finally {
@@ -692,19 +692,19 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
     }
   }
 
-  // ── handleDraftRegenerate: generate a new objective of selected type, then score it ──
+  // ── handleDraftRegenerate: generate fresh objective of selected type, then score ──
   async function handleDraftRegenerate(obj, type) {
     setDraftRegenPicker(p => ({ ...p, [obj.id]: false }))
     setDraftImproving(p => ({ ...p, [obj.id]: 'regenerating' }))
     try {
       const otherTitles = objectives.filter(o => o.id !== obj.id && o.title?.trim()).map(o => o.title)
       const skeleton = { type, title: '', description: '', key_results: [],
-        feedback: `Generate a completely new ${type} objective from scratch for this employee. Do not reference the previous objective — create something entirely new and relevant.` }
+        feedback: `Generate a completely new ${type} objective from scratch. Do not reference any previous objective.` }
       const generated = await improveObjective({ profile, objective: skeleton, cascade, otherTitles })
       setDraftImproving(p => ({ ...p, [obj.id]: 'scoring' }))
-      const scoreResult = await scoreObjectives({ profile, objectives: [{ ...generated, type }], cascade })
-      const scored = (scoreResult?.objectives ?? scoreResult)?.[0]
-      setDraftProposals(p => ({ ...p, [obj.id]: { ...generated, type, score: scored?.score ?? null } }))
+      const sr = await scoreObjectives({ profile, objectives: [{ ...generated, type }], cascade })
+      const sc = (sr?.objectives ?? sr)?.[0]
+      setDraftProposals(p => ({ ...p, [obj.id]: { ...generated, type, score: sc?.score ?? null } }))
     } catch (err) {
       console.error('draft regen error:', err)
     } finally {
@@ -712,7 +712,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
     }
   }
 
-  // ── acceptDraftProposal: apply proposal including score ──
+  // ── acceptDraftProposal: apply proposal including type and score ──
   function acceptDraftProposal(objId) {
     const proposal = draftProposals[objId]
     if (!proposal) return
@@ -951,19 +951,27 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
             const ph = PLACEHOLDERS[obj.type] ?? PLACEHOLDERS.performance
             return (
               <div key={obj.id} style={{ ...ds.objCard, animation: obj.source === 'delfos' ? 'objIn 0.4s ease' : undefined }}>
+                {/* Score at top center */}
+                {obj.score != null && (
+                  <div style={{ textAlign: 'center', paddingBottom: 10,
+                                borderBottom: '1px solid var(--border)', marginBottom: 2 }}>
+                    <span style={{ fontSize: 28, fontWeight: 800, lineHeight: 1,
+                                   color: scoreColor(obj.score, getThreshold(profile?.archetype_code)) }}>
+                      {obj.score}%
+                    </span>
+                    <span style={{ display: 'block', fontSize: 9, fontWeight: 700,
+                                   letterSpacing: '0.1em', marginTop: 2,
+                                   color: scoreColor(obj.score, getThreshold(profile?.archetype_code)) }}>
+                      QUALITY
+                    </span>
+                  </div>
+                )}
                 {/* Card header */}
-                <div style={{ ...ds.objCardHead, position: 'relative' }}>
+                <div style={ds.objCardHead}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <span style={ds.objNumBadge}>OBJ {i + 1}</span>
                     {obj.source === 'delfos' && <span style={rs.delfosBadge}>DELFOS</span>}
                   </div>
-                  {obj.score != null && (
-                    <span style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)',
-                                   fontSize: 20, fontWeight: 800,
-                                   color: scoreColor(obj.score, getThreshold(profile?.archetype_code)) }}>
-                      {obj.score}%
-                    </span>
-                  )}
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     {['performance', 'learning', 'team'].map(t => (
                       <button key={t} onClick={() => update(obj.id, 'type', t)}
@@ -1044,7 +1052,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
                       disabled={!!draftImproving[obj.id]}
                       onClick={() => setDraftRegenPicker(p => ({ ...p, [obj.id]: !p[obj.id] }))}>
                       {draftImproving[obj.id] === 'regenerating' ? '⏳ Generando…'
-                        : draftImproving[obj.id] === 'scoring'     ? '⏳ Puntuando…'
+                        : draftImproving[obj.id] === 'scoring'   ? '⏳ Puntuando…'
                         : '↻ Regenerar'}
                     </button>
                     <button
@@ -1052,22 +1060,19 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
                       disabled={!!draftImproving[obj.id] || !obj.title?.trim()}
                       onClick={() => handleDraftImprove(obj)}>
                       {draftImproving[obj.id] === 'improving' ? '⏳ Mejorando…'
-                        : draftImproving[obj.id] === 'scoring'  ? '⏳ Puntuando…'
+                        : draftImproving[obj.id] === 'scoring' ? '⏳ Puntuando…'
                         : '✦ Mejorar'}
                     </button>
                   </div>
 
-                  {/* Type picker for regeneration */}
                   {draftRegenPicker[obj.id] && !draftImproving[obj.id] && (
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 11, color: 'var(--tx2)' }}>Tipo:</span>
                       {['performance', 'learning', ...(needsTeam ? ['team'] : [])].map(t => (
                         <button key={t}
-                          style={{
-                            ...ds.typeBtn,
+                          style={{ ...ds.typeBtn,
                             background: t === 'team' ? 'var(--purple)' : t === 'learning' ? 'var(--blue)' : 'var(--ac)',
-                            color: '#fff',
-                          }}
+                            color: '#fff' }}
                           onClick={() => handleDraftRegenerate(obj, t)}>
                           {t.charAt(0).toUpperCase() + t.slice(1)}
                         </button>
@@ -1075,7 +1080,6 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
                     </div>
                   )}
 
-                  {/* Proposal panel with score */}
                   {draftProposals[obj.id] && (
                     <div style={{ background: 'var(--ai-soft)', border: '1px solid var(--ai-border)', borderRadius: 8, padding: '12px 14px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
