@@ -3,6 +3,7 @@ import { supabase } from './lib/supabase'
 import { ProfileProvider, useProfile } from './context/ProfileContext'
 import ProfileSetup from './screens/ProfileSetup'
 import ObjectiveDraft from './screens/ObjectiveDraft'
+import MyObjectives from './screens/MyObjectives'
 import Settings from './screens/Settings'
 import ManagerView from './screens/ManagerView'
 import CoverageView from './screens/CoverageView'
@@ -99,29 +100,35 @@ function Router({ onLogout, session, canAccessCoverage }) {
   const [payload,        setPayload]        = useState(null)
   const [editingProfile, setEditingProfile] = useState(false)
 
-  const goSettings   = () => setScreen('settings')
-  const goManager    = () => setScreen('manager')
-  const goCoverage   = canAccessCoverage ? () => setScreen('coverage') : null
-  const goObjectives = () => setScreen('objectives')
+  const goSettings      = () => setScreen('settings')
+  const goManager       = () => setScreen('manager')
+  const goCoverage      = canAccessCoverage ? () => setScreen('coverage') : null
+  const goObjectives    = () => setScreen('objectives')
+  const goMyObjectives  = () => setScreen('my-objectives')
 
   async function handleLogout() {
     clearProfile()
     await supabase.auth.signOut()
   }
 
-  const tabsEmployee = { onEmployeeView: null,         onManagerView: goManager, onCoverageView: goCoverage, activeTab: 'employee' }
-  const tabsManager  = { onEmployeeView: goObjectives, onManagerView: null,      onCoverageView: goCoverage, activeTab: 'manager'  }
-  const tabsCoverage = { onEmployeeView: goObjectives, onManagerView: goManager, onCoverageView: null,       activeTab: 'coverage' }
+  const sharedTabs = (active) => ({
+    onEmployeeView:     active === 'employee'      ? null : goObjectives,
+    onMyObjectivesView: active === 'my-objectives' ? null : goMyObjectives,
+    onManagerView:      active === 'manager'       ? null : goManager,
+    onCoverageView:     active === 'coverage'      ? null : goCoverage,
+    activeTab: active,
+  })
 
-  if (screen === 'settings') return <Settings onBack={goObjectives} />
-  if (screen === 'manager')  return <ManagerView {...tabsManager}  onLogout={handleLogout} />
-  if (screen === 'coverage') return <CoverageView {...tabsCoverage} onLogout={handleLogout} />
+  if (screen === 'settings')      return <Settings onBack={goObjectives} />
+  if (screen === 'manager')       return <ManagerView      {...sharedTabs('manager')}       onLogout={handleLogout} />
+  if (screen === 'my-objectives') return <MyObjectives     {...sharedTabs('my-objectives')} onLogout={handleLogout} onSettings={goSettings} />
+  if (screen === 'coverage')      return <CoverageView     {...sharedTabs('coverage')}      onLogout={handleLogout} />
 
   if (!profile || editingProfile) return (
     <ProfileSetup
       session={session}
       existingProfile={profile}
-      {...tabsEmployee}
+      {...sharedTabs('employee')}
       onLogout={handleLogout}
       onSaved={() => setEditingProfile(false)}
     />
@@ -136,7 +143,7 @@ function Router({ onLogout, session, canAccessCoverage }) {
           setScreen(to)
         }}
         onSettings={goSettings}
-        {...tabsEmployee}
+        {...sharedTabs('employee')}
         onLogout={handleLogout}
       />
     )

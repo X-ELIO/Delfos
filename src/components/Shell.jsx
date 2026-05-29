@@ -28,12 +28,13 @@ function ThemeToggle() {
 }
 
 export default function Shell({ children, step = 0, bonusChip = null, onBack = null, onSettings = null,
-  onEmployeeView = null, onManagerView = null, onCoverageView = null, onLogout = null, activeTab = 'employee' }) {
+  onEmployeeView = null, onMyObjectivesView = null, onManagerView = null, onCoverageView = null, onLogout = null, activeTab = 'employee' }) {
 
   const NAV_TABS = [
-    { id: 'employee', label: 'Employee', onClick: onEmployeeView },
-    { id: 'manager',  label: 'Manager',  onClick: onManagerView  },
-    { id: 'coverage', label: 'Coverage', onClick: onCoverageView },
+    { id: 'employee',      label: 'Set your objectives', onClick: onEmployeeView      },
+    { id: 'my-objectives', label: 'My Objectives',       onClick: onMyObjectivesView  },
+    { id: 'manager',       label: 'My Team',             onClick: onManagerView       },
+    { id: 'coverage',      label: 'Coverage',            onClick: onCoverageView      },
   ]
 
   return (

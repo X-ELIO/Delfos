@@ -71,12 +71,12 @@ const LOAD_MESSAGES = {
 }
 
 // ── Loading screen ─────────────────────────────────────────────────────────
-function LoadingScreen({ action, elapsed, onSettings, onEmployeeView, onManagerView, onCoverageView, activeTab, onLogout }) {
+function LoadingScreen({ action, elapsed, onSettings, onEmployeeView, onMyObjectivesView, onManagerView, onCoverageView, activeTab, onLogout }) {
   const msgs  = LOAD_MESSAGES[action] ?? []
   const msg   = [...msgs].reverse().find(([t]) => elapsed >= t)?.[1] ?? ''
   const title = action === 'asking' ? 'Asking Delfos for suggestions…' : 'Scoring your portfolio…'
   return (
-    <Shell step={1} onSettings={onSettings} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
+    <Shell step={1} onSettings={onSettings} onEmployeeView={onEmployeeView} onMyObjectivesView={onMyObjectivesView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
                     justifyContent: 'center', height: '100%', gap: 20, textAlign: 'center' }}>
         <div style={{ position: 'relative', width: 56, height: 56 }}>
@@ -265,14 +265,129 @@ const ca = {
   weight:     { fontSize: 11, color: 'var(--ac)', fontWeight: 600, flexShrink: 0 },
 }
 
+// ── Objective detail modal ─────────────────────────────────────────────────
+function ObjectiveModal({ obj, onClose, thresh }) {
+  if (!obj) return null
+  const sc     = obj.score ?? 0
+  const scCol  = thresh ? scoreColor(sc, thresh) : 'var(--tx2)'
+  const ss     = obj.sub_scores ?? {}
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+         onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16,
+                    maxWidth: 640, width: '100%', maxHeight: '90vh', overflowY: 'auto',
+                    padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        {/* Modal header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {obj.source === 'delfos'      && <span style={rs.delfosBadge}>DELFOS</span>}
+            {obj.type   === 'performance' && <span style={rs.perfBadge}>PERFORMANCE</span>}
+            {obj.type   === 'team'        && <span style={rs.teamBadge}>TEAM</span>}
+            {obj.type   === 'learning'    && <span style={rs.learnBadge}>LEARNING</span>}
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer',
+                                             color: 'var(--tx2)', fontSize: 20, lineHeight: 1, flexShrink: 0 }}>✕</button>
+        </div>
+
+        {/* Score + title */}
+        {sc > 0 && obj.type !== 'learning' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ textAlign: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 36, fontWeight: 800, color: scCol, lineHeight: 1 }}>{sc}%</span>
+              <span style={{ display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: scCol, marginTop: 2 }}>QUALITY</span>
+            </div>
+            {obj.weight > 0 && (
+              <span style={{ fontSize: 11, fontWeight: 700, border: `1px solid ${scCol}`, color: scCol,
+                             padding: '3px 8px', borderRadius: 4 }}>WEIGHT {obj.weight}%</span>
+            )}
+          </div>
+        )}
+
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--tx)', lineHeight: 1.35, margin: 0 }}>{obj.title}</h2>
+
+        {obj.feedback && (
+          <p style={{ fontSize: 13, fontStyle: 'italic', color: scCol, lineHeight: 1.5, margin: 0 }}>{obj.feedback}</p>
+        )}
+
+        {obj.description && (
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--tx2)', marginBottom: 6 }}>DESCRIPTION</p>
+            <p style={{ fontSize: 13, color: 'var(--tx)', lineHeight: 1.6 }}>{obj.description}</p>
+          </div>
+        )}
+
+        {(obj.by_when || obj.metric) && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {obj.by_when && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--tx2)', marginBottom: 4 }}>BY WHEN</p>
+                <p style={{ fontSize: 13, color: 'var(--tx)' }}>{obj.by_when}</p>
+              </div>
+            )}
+            {obj.metric && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--tx2)', marginBottom: 4 }}>METRIC</p>
+                <p style={{ fontSize: 13, color: 'var(--tx)' }}>{obj.metric}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {obj.key_results?.length > 0 && (
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--tx2)', marginBottom: 6 }}>KEY RESULTS</p>
+            {obj.key_results.map((kr, j) => (
+              <p key={j} style={{ fontSize: 13, color: 'var(--tx)', marginBottom: 5, lineHeight: 1.4 }}>• {kr}</p>
+            ))}
+          </div>
+        )}
+
+        {Object.keys(ss).length > 0 && (
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--tx2)', marginBottom: 8 }}>SCORE BREAKDOWN</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {SUB_SCORE_DIMS.map(dim => ss[dim.key] != null
+                ? <SubScoreBar key={dim.key} label={dim.label} weight={dim.weight} value={ss[dim.key]} />
+                : null)}
+            </div>
+          </div>
+        )}
+
+        {obj.linked_cascades?.length > 0 && (
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--tx2)', marginBottom: 4 }}>LINKED TO STRATEGY</p>
+            <p style={{ fontSize: 12, color: 'var(--tx2)', lineHeight: 1.5 }}>
+              <span style={{ color: 'var(--ac)', marginRight: 4 }}>🔗</span>
+              {obj.linked_cascades.join('; ')}
+            </p>
+          </div>
+        )}
+
+        {obj.coaching_tips?.length > 0 && (
+          <div style={{ background: 'var(--ai-soft)', border: '1px solid var(--ai-border)', borderRadius: 8, padding: '12px 14px' }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--purple)', marginBottom: 8, letterSpacing: '0.08em' }}>✦ MEJORAS SUGERIDAS</p>
+            {obj.coaching_tips.map((tip, j) => (
+              <p key={j} style={{ fontSize: 13, color: 'var(--tx2)', marginBottom: 4 }}>→ {tip}</p>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Report screen (Step 3) ─────────────────────────────────────────────────
-function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onAcceptImproved, onRescored, onIgnore, cascade, onSettings, onEmployeeView, onManagerView, onCoverageView, activeTab, onLogout }) {
+function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onAcceptImproved, onRescored, onIgnore, cascade, onSettings, onEmployeeView, onMyObjectivesView, onManagerView, onCoverageView, activeTab, onLogout }) {
   const { profile } = useProfile()
   const thresh = getThreshold(profile?.archetype_code)
 
   const [improving, setImproving] = useState({})
   const [proposals, setProposals] = useState({})
   const [editing,   setEditing]   = useState({})
+  const [modalObj,  setModalObj]  = useState(null)
   const [saving,    setSaving]    = useState(false)
 
   async function handleImprove(obj) {
@@ -335,9 +450,13 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onAccept
   }
 
   const active      = objectives.filter(o => o.status !== 'ignored')
-  const avg         = active.length ? Math.round(active.reduce((s, o) => s + (o.score ?? 0), 0) / active.length) : 0
+  const scoreable   = active.filter(o => o.type !== 'learning' && o.score != null)
+  const avg         = scoreable.length ? Math.round(scoreable.reduce((s, o) => s + o.score, 0) / scoreable.length) : 0
   const color       = scoreColor(avg, thresh)
   const statusLabel = avg >= thresh.green ? 'GREEN' : avg >= thresh.min ? 'AMBER' : 'RED'
+  const statusText  = avg >= thresh.green ? 'high-ambition portfolio.'
+    : avg >= thresh.min ? 'solid portfolio with room to stretch.'
+    : 'portfolio needs strengthening before submission.'
 
   async function handleSubmitClick() {
     setSaving(true)
@@ -345,7 +464,8 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onAccept
   }
 
   return (
-    <Shell step={2} onBack={onBack} onSettings={onSettings} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
+    <Shell step={2} onBack={onBack} onSettings={onSettings} onEmployeeView={onEmployeeView} onMyObjectivesView={onMyObjectivesView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
+      <ObjectiveModal obj={modalObj} onClose={() => setModalObj(null)} thresh={thresh} />
       <div style={{ maxWidth: 700, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── AI banner ── */}
@@ -383,20 +503,35 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onAccept
           </div>
         </div>
 
+        {/* ── Score description ── */}
+        <div style={rs.infoBox}>
+          <span style={{ fontWeight: 700, color: 'var(--tx)', fontSize: 12 }}>About this score (Year 1): </span>
+          <span style={{ color: 'var(--tx2)', fontSize: 12 }}>
+            The % reflects the quality and ambition of how objectives are written, not a final payout.
+            Year-end review remains the source of truth for bonus, with this score informing the broader performance conversation.
+          </span>
+        </div>
+        <div style={{ ...rs.highlightBox, borderColor: color }}>
+          <span style={{ fontWeight: 600, color, fontSize: 13 }}>
+            {avg}% of bonus can be achieved if fully delivered — {statusText}
+          </span>
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--tx2)', fontStyle: 'italic', marginTop: -8 }}>
+          Bonus Potential is the ceiling — what you can reach if you deliver 100% of these objectives.
+        </p>
+
         {/* ── Objective cards ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {objectives.map((obj, i) => {
-            const sc      = obj.score ?? 0
-            const scCol   = scoreColor(sc, thresh)
-            const ss      = obj.sub_scores ?? {}
+            const sc       = obj.score ?? 0
+            const scCol    = scoreColor(sc, thresh)
+            const ss       = obj.sub_scores ?? {}
             const belowMin = sc > 0 && sc < thresh.min
-            const ed      = editing[obj.id]
 
             return (
               <div key={obj.id} style={{
                 ...rs.card,
-                opacity:     obj.status === 'ignored' ? 0.4 : 1,
-                borderColor: belowMin && obj.status !== 'ignored' ? 'rgba(239,68,68,0.5)' : 'var(--border)',
+                borderColor: belowMin ? 'rgba(239,68,68,0.5)' : 'var(--border)',
               }}>
                 {/* Header row */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -406,7 +541,7 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onAccept
                     {obj.type   === 'performance' && <span style={rs.perfBadge}>PERFORMANCE</span>}
                     {obj.type   === 'team'        && <span style={rs.teamBadge}>TEAM</span>}
                     {obj.type   === 'learning'    && <span style={rs.learnBadge}>LEARNING</span>}
-                    {belowMin && obj.status !== 'ignored' && <span style={rs.threshBadge}>BELOW THRESHOLD</span>}
+                    {belowMin && <span style={rs.threshBadge}>BELOW THRESHOLD</span>}
                     {obj.weight > 0 && (
                       <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
                                      border: `1px solid ${scCol}`, color: scCol, padding: '3px 8px', borderRadius: 4 }}>
@@ -414,101 +549,58 @@ function ReportScreen({ objectives, portfolioSummary, onBack, onSubmit, onAccept
                       </span>
                     )}
                   </div>
-                  {sc > 0 && <ScoreGauge score={sc} size={52} thresh={thresh} />}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {sc > 0 && <ScoreGauge score={sc} size={52} thresh={thresh} />}
+                    <button onClick={() => setModalObj(obj)}
+                      style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                               color: 'var(--tx2)', fontSize: 14, cursor: 'pointer', padding: '4px 8px',
+                               lineHeight: 1, flexShrink: 0 }} title="Ver detalle">⤢</button>
+                  </div>
                 </div>
 
-                {ed ? (
-                  /* ── Edit mode ── */
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-                    <input style={rs.editInput} value={ed.title}
-                      onChange={e => setEditing(p => ({ ...p, [obj.id]: { ...p[obj.id], title: e.target.value } }))}
-                      placeholder="Objective title" />
-                    <textarea style={{ ...rs.editInput, minHeight: 72, resize: 'vertical' }} value={ed.description}
-                      onChange={e => setEditing(p => ({ ...p, [obj.id]: { ...p[obj.id], description: e.target.value } }))}
-                      placeholder="Description, KRs, timeline…" />
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button style={rs.btnAccept} disabled={!!improving[obj.id]} onClick={() => saveEdit(obj)}>
-                        {improving[obj.id] === 'scoring' ? '⏳ Re-scoring…' : '✓ Save & re-score'}
-                      </button>
-                      <button style={rs.btnIgnore} onClick={() => cancelEdit(obj.id)}>Cancel</button>
-                    </div>
+                <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--tx)', margin: '10px 0 4px' }}>{obj.title}</p>
+
+                {obj.feedback && (
+                  <p style={{ fontSize: 12, fontStyle: 'italic', color: scCol, marginBottom: 8, lineHeight: 1.4 }}>
+                    {obj.feedback}
+                  </p>
+                )}
+
+                {/* Sub-score bars */}
+                {Object.keys(ss).length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, margin: '8px 0 10px' }}>
+                    {SUB_SCORE_DIMS.map(dim => ss[dim.key] != null
+                      ? <SubScoreBar key={dim.key} label={dim.label} weight={dim.weight} value={ss[dim.key]} />
+                      : null)}
                   </div>
-                ) : (
-                  <>
-                    <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--tx)', margin: '10px 0 4px' }}>{obj.title}</p>
+                )}
 
-                    {obj.feedback && (
-                      <p style={{ fontSize: 12, fontStyle: 'italic', color: scCol, marginBottom: 8, lineHeight: 1.4 }}>
-                        {obj.feedback}
-                      </p>
-                    )}
+                {/* Key Results */}
+                {obj.key_results?.length > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx2)', marginBottom: 4, letterSpacing: '0.08em' }}>KEY RESULTS</p>
+                    {obj.key_results.map((kr, j) => (
+                      <p key={j} style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 2 }}>• {kr}</p>
+                    ))}
+                  </div>
+                )}
 
-                    {/* Sub-score bars */}
-                    {Object.keys(ss).length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, margin: '8px 0 10px' }}>
-                        {SUB_SCORE_DIMS.map(dim => ss[dim.key] != null
-                          ? <SubScoreBar key={dim.key} label={dim.label} weight={dim.weight} value={ss[dim.key]} />
-                          : null)}
-                      </div>
-                    )}
+                {/* Cascade links */}
+                {obj.linked_cascades?.length > 0 && (
+                  <p style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 8, lineHeight: 1.4 }}>
+                    <span style={{ color: 'var(--ac)', marginRight: 4 }}>🔗</span>
+                    {obj.linked_cascades.join('; ')}
+                  </p>
+                )}
 
-                    {/* Key Results */}
-                    {obj.key_results?.length > 0 && (
-                      <div style={{ marginBottom: 8 }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx2)', marginBottom: 4, letterSpacing: '0.08em' }}>KEY RESULTS</p>
-                        {obj.key_results.map((kr, j) => (
-                          <p key={j} style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 2 }}>• {kr}</p>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Cascade links */}
-                    {obj.linked_cascades?.length > 0 && (
-                      <p style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 8, lineHeight: 1.4 }}>
-                        <span style={{ color: 'var(--ac)', marginRight: 4 }}>🔗</span>
-                        {obj.linked_cascades.join('; ')}
-                      </p>
-                    )}
-
-                    {/* Coaching tips */}
-                    {obj.coaching_tips?.length > 0 && (
-                      <div style={{ marginBottom: 8 }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx2)', marginBottom: 4, letterSpacing: '0.08em' }}>TO INCREASE SCORE</p>
-                        {obj.coaching_tips.map((tip, j) => (
-                          <p key={j} style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 3 }}>→ {tip}</p>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Action row */}
-                    {obj.status !== 'ignored' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8,
-                                    paddingTop: 10, borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button style={rs.btnAi} disabled={!!improving[obj.id]} onClick={() => handleImprove(obj)}>
-                            {improving[obj.id] === 'improving' ? '⏳ Asking Delfos…'
-                              : improving[obj.id] === 'scoring' ? '⏳ Re-scoring…'
-                              : '✦ Ask Delfos to improve'}
-                          </button>
-                          <button style={rs.btnEdit} onClick={() => startEdit(obj)}>✎ Edit</button>
-                          <button style={rs.btnIgnore} onClick={() => onIgnore(obj.id)}>Ignore</button>
-                        </div>
-
-                        {/* Proposal panel */}
-                        {proposals[obj.id] && (
-                          <div style={rs.proposal}>
-                            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--purple)', marginBottom: 6, letterSpacing: '0.08em' }}>DELFOS SUGGESTS</p>
-                            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)', marginBottom: 4 }}>{proposals[obj.id].title}</p>
-                            <p style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 6 }}>{proposals[obj.id].description}</p>
-                            {proposals[obj.id].key_results?.map((kr, j) => (
-                              <p key={j} style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 2 }}>• {kr}</p>
-                            ))}
-                            <button style={rs.btnAccept} onClick={() => acceptProposal(obj)}>✓ Accept this improvement</button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
+                {/* Coaching tips */}
+                {obj.coaching_tips?.length > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx2)', marginBottom: 4, letterSpacing: '0.08em' }}>TO INCREASE SCORE</p>
+                    {obj.coaching_tips.map((tip, j) => (
+                      <p key={j} style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 3 }}>→ {tip}</p>
+                    ))}
+                  </div>
                 )}
               </div>
             )
@@ -577,6 +669,8 @@ const rs = {
                  fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
   btnIgnore:   { background: 'none', border: 'none', color: 'var(--err)', fontSize: 12,
                  padding: '5px 12px', borderRadius: 6, cursor: 'pointer' },
+  infoBox:     { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' },
+  highlightBox: { background: 'transparent', border: '1px solid', borderRadius: 8, padding: '12px 16px' },
   back:        { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14, cursor: 'pointer' },
   submit:      { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
                  fontSize: 14, fontWeight: 600, padding: '10px 24px', cursor: 'pointer' },
@@ -589,7 +683,7 @@ const rs = {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
-export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView, onManagerView, onCoverageView, activeTab, onLogout }) {
+export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView, onMyObjectivesView, onManagerView, onCoverageView, activeTab, onLogout }) {
   const { profile } = useProfile()
 
   const [cascade,          setCascade]          = useState([])
@@ -610,6 +704,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
   const [draftRegenPicker, setDraftRegenPicker] = useState({})
   const [showAddPicker,   setShowAddPicker]     = useState(false)
   const [draftRescoring,  setDraftRescoring]    = useState({})
+  const [draftModalObj,   setDraftModalObj]     = useState(null)
   const timerRef = useRef(null)
 
   useEffect(() => {
@@ -749,7 +844,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
     if (!filled.length) return
     const scoreable  = filled.filter(o => o.type !== 'learning')
     const allScored  = scoreable.every(o => o.score != null)
-    if (!scoreable.length || allScored) { setPhase('report'); return }
+    if (!scoreable.length || (allScored && portfolioSummary)) { setPhase('report'); return }
 
     setPhase('loading'); startTimer('scoring')
     try {
@@ -852,8 +947,9 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
     const aiObjs   = objectives.filter(o => o.source === 'delfos')
     const manual   = objectives.filter(o => o.source !== 'delfos')
     const improved = objectives.filter(o => o.was_improved)
-    const avg      = active.length
-      ? Math.round(active.reduce((s, o) => s + (o.score ?? 0), 0) / active.length)
+    const scoreable = active.filter(o => o.type !== 'learning' && o.score != null)
+    const avg      = scoreable.length
+      ? Math.round(scoreable.reduce((s, o) => s + o.score, 0) / scoreable.length)
       : 0
 
     try {
@@ -917,8 +1013,8 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
   // ── Phase: loading ──
   if (phase === 'loading') return (
     <LoadingScreen action={loadCtx.action} elapsed={loadCtx.elapsed}
-      onSettings={onSettings} onEmployeeView={onEmployeeView} onManagerView={onManagerView}
-      onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout} />
+      onSettings={onSettings} onEmployeeView={onEmployeeView} onMyObjectivesView={onMyObjectivesView}
+      onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout} />
   )
 
   // ── Phase: report (Step 3) ──
@@ -934,6 +1030,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
       onIgnore={(id) => setObjectives(p => p.map(o => o.id === id ? { ...o, status: 'ignored' } : o))}
       onSettings={onSettings}
       onEmployeeView={onEmployeeView}
+      onMyObjectivesView={onMyObjectivesView}
       onManagerView={onManagerView}
       onCoverageView={onCoverageView}
       activeTab={activeTab}
@@ -951,7 +1048,8 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
   const canScore      = hasFilled && countOk && (!needsTeam || hasTeamObj) && kpiViolations.length === 0
 
   return (
-    <Shell step={1} onBack={() => onNavigate('profile')} onSettings={onSettings} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
+    <Shell step={1} onBack={() => onNavigate('profile')} onSettings={onSettings} onEmployeeView={onEmployeeView} onMyObjectivesView={onMyObjectivesView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
+      <ObjectiveModal obj={draftModalObj} onClose={() => setDraftModalObj(null)} thresh={getThreshold(profile?.archetype_code)} />
       <div style={ds.page}>
 
         {/* Bonus info banner */}
@@ -1040,6 +1138,10 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
                     {obj.type === 'learning' && <span style={rs.learnBadge}>LEARNING</span>}
                     {obj.type === 'team'     && <span style={rs.teamBadge}>TEAM</span>}
                     {obj.type === 'performance' && <span style={rs.perfBadge}>PERFORMANCE</span>}
+                    <button onClick={() => setDraftModalObj(obj)}
+                      style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                               color: 'var(--tx2)', fontSize: 14, cursor: 'pointer', padding: '3px 7px',
+                               lineHeight: 1 }} title="Ver detalle">⤢</button>
                     {objectives.length > 1 && (
                       <button onClick={() => remove(obj.id)} style={ds.removeBtn}>✕</button>
                     )}
@@ -1098,6 +1200,19 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
                       placeholder={'KR1: ...\nKR2: ...\nKR3: ...'} />
                   </div>
                 </div>
+
+                {/* Coaching tips */}
+                {obj.coaching_tips?.length > 0 && (
+                  <div style={{ background: 'var(--ai-soft)', border: '1px solid var(--ai-border)',
+                                borderRadius: 8, padding: '10px 12px', marginTop: 4 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--purple)', marginBottom: 6, letterSpacing: '0.08em' }}>
+                      ✦ MEJORAS SUGERIDAS
+                    </p>
+                    {obj.coaching_tips.map((tip, j) => (
+                      <p key={j} style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 3 }}>→ {tip}</p>
+                    ))}
+                  </div>
+                )}
 
                 {/* Per-card Delfos row */}
                 <div style={{ paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>

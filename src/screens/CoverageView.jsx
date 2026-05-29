@@ -127,7 +127,7 @@ function getSubtree(name, map, visited = new Set()) {
   return all
 }
 
-export default function CoverageView({ onEmployeeView, onManagerView, activeTab, onLogout }) {
+export default function CoverageView({ onEmployeeView, onMyObjectivesView, onManagerView, onCoverageView, activeTab, onLogout }) {
   const [loading,          setLoading]          = useState(true)
   const [submissions,      setSubmissions]      = useState([])
   const [objBySubmission,  setObjBySubmission]  = useState({})
@@ -228,7 +228,8 @@ export default function CoverageView({ onEmployeeView, onManagerView, activeTab,
   }, {})
 
   return (
-    <Shell step={0} onEmployeeView={onEmployeeView} onManagerView={onManagerView} activeTab={activeTab} onLogout={onLogout}>
+    <Shell step={0} onEmployeeView={onEmployeeView} onMyObjectivesView={onMyObjectivesView}
+      onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
       <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* Header */}
