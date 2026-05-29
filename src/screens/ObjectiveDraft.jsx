@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../context/ProfileContext'
-import { suggestObjectivesStream, scoreObjectives, improveObjective } from '../lib/delfos'
+import { suggestObjectives, scoreObjectives, improveObjective } from '../lib/delfos'
 import Shell from '../components/Shell'
 import { ARCHETYPE_THRESHOLDS } from '../lib/constants'
 
@@ -608,7 +608,8 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
   const [draftImproving,   setDraftImproving]   = useState({})
   const [draftProposals,   setDraftProposals]   = useState({})
   const [draftRegenPicker, setDraftRegenPicker] = useState({})
-  const [delfosStreaming,  setDelfosStreaming]   = useState(false)
+  const [showAddPicker,   setShowAddPicker]     = useState(false)
+  const [draftRescoring,  setDraftRescoring]    = useState({})
   const timerRef = useRef(null)
 
   useEffect(() => {
@@ -649,29 +650,30 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
   }
 
-  // ── handleAskDelfos: streams objectives one by one, then auto-scores ──
+  // ── handleAskDelfos: generate all → score all → show draft ──
   async function handleAskDelfos() {
-    setDelfosStreaming(true)
     setError(null)
-    const existing = objectives.filter(o => o.title.trim())
-    setObjectives(existing)
-    const streamed = []
+    setPhase('loading')
+    startTimer('asking')
+    const collected = []
     try {
-      await suggestObjectivesStream(
-        { profile, cascade, priorities: profile.current_priorities, typePreference: delfosType },
-        (obj) => {
-          streamed.push(obj)
-          setObjectives(prev => [...prev, obj])
-        }
-      )
-      const allObjs = [...existing, ...streamed]
-      setObjectives(allObjs)
-      setDelfosStreaming(false)
-      await handleScoreWith(allObjs)
+      const genResult = await suggestObjectives({ profile, cascade, priorities: profile.current_priorities, typePreference: delfosType })
+      const generated = genResult?.objectives ?? []
+      if (!generated.length) throw new Error('Delfos no generó objetivos. Inténtalo de nuevo.')
+      collected.push(...generated)
+      stopTimer()
+      startTimer('scoring')
+      const scoreResult = await scoreObjectives({ profile, objectives: collected, cascade })
+      stopTimer()
+      const scored = Array.isArray(scoreResult?.objectives) ? scoreResult.objectives : []
+      setObjectives(collected.map((o, i) => ({ ...o, ...(scored[i] ?? {}) })))
+      setPortfolioSummary(scoreResult?.summary ?? '')
+      setPhase('draft')
     } catch (err) {
-      console.error('suggest-objectives error:', err)
+      stopTimer()
+      console.error('handleAskDelfos error:', err)
       setError(`Error: ${err?.message ?? JSON.stringify(err)}`)
-      setDelfosStreaming(false)
+      setPhase('draft')
     }
   }
 
@@ -729,6 +731,10 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
   async function handleScoreWith(toScore) {
     const filled = toScore.filter(o => o.title?.trim())
     if (!filled.length) return
+
+    const allScored = filled.every(o => o.score != null)
+    if (allScored) { setPhase('report'); return }
+
     setPhase('loading'); startTimer('scoring')
     try {
       const result  = await scoreObjectives({ profile, objectives: filled, cascade })
@@ -760,6 +766,50 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
   }
 
   async function handleScore() { await handleScoreWith(objectives) }
+
+  async function handleCardRescore(obj) {
+    setDraftRescoring(p => ({ ...p, [obj.id]: true }))
+    try {
+      const sr = await scoreObjectives({ profile, objectives: [obj], cascade })
+      const sc = (sr?.objectives ?? sr)?.[0]
+      setObjectives(prev => prev.map(o => o.id === obj.id ? { ...o, score: sc?.score ?? o.score } : o))
+    } catch (err) {
+      console.error('card rescore error:', err)
+    } finally {
+      setDraftRescoring(p => ({ ...p, [obj.id]: false }))
+    }
+  }
+
+  async function handleRescore() {
+    const filled = objectives.filter(o => o.title?.trim())
+    if (!filled.length) return
+    setPhase('loading'); startTimer('scoring')
+    try {
+      const result  = await scoreObjectives({ profile, objectives: filled, cascade })
+      stopTimer()
+      let scored    = result?.objectives ?? result
+      const summary = result?.summary ?? ''
+      const weightSum = scored.reduce((s, o) => s + (o.weight ?? 0), 0)
+      if (weightSum > 0 && weightSum !== 100) {
+        const scale = 100 / weightSum
+        let remaining = 100
+        scored = scored.map((o, i) => {
+          if (i === scored.length - 1) return { ...o, weight: remaining }
+          const w = Math.round((o.weight ?? 0) * scale)
+          remaining -= w
+          return { ...o, weight: w }
+        })
+      }
+      setObjectives(scored)
+      setPortfolioSummary(summary)
+      setPhase('report')
+    } catch (err) {
+      stopTimer()
+      console.error('rescore error:', err)
+      setError('Error al puntuar. Inténtalo de nuevo.')
+      setPhase('draft')
+    }
+  }
 
   function addObjective() {
     setObjectives(p => [...p, { id: Date.now(), type: 'performance', title: '', description: '', source: 'user', status: 'active' }])
@@ -872,9 +922,11 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
   // ── Phase: draft (Step 2) ──
   const needsTeam     = ['A', 'B'].includes(profile?.archetype_code)
   const hasTeamObj    = objectives.some(o => o.type === 'team' && o.title.trim())
-  const hasFilled     = objectives.some(o => o.title.trim())
-  const kpiViolations = detectPeopleKpiViolation(objectives.filter(o => o.title.trim()))
-  const canScore      = hasFilled && (!needsTeam || hasTeamObj) && kpiViolations.length === 0
+  const filledObjs    = objectives.filter(o => o.title.trim())
+  const hasFilled     = filledObjs.length > 0
+  const kpiViolations = detectPeopleKpiViolation(filledObjs)
+  const countOk       = filledObjs.length >= 3 && filledObjs.length <= 5
+  const canScore      = hasFilled && countOk && (!needsTeam || hasTeamObj) && kpiViolations.length === 0
 
   return (
     <Shell step={1} onBack={() => onNavigate('profile')} onSettings={onSettings} onEmployeeView={onEmployeeView} onManagerView={onManagerView} onCoverageView={onCoverageView} activeTab={activeTab} onLogout={onLogout}>
@@ -899,6 +951,11 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
         </div>
 
         <h1 style={ds.heading}>Set Your Objectives</h1>
+
+        {/* Ask Delfos CTA */}
+        <button style={ds.delfosFullBtn} onClick={handleAskDelfos}>
+          ✦ Generar mis objetivos con Delfos
+        </button>
 
         {/* Cascade accordion */}
         <CascadeAccordion cascade={cascade} country_label={profile.country_label} />
@@ -927,21 +984,6 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
             <p style={{ fontSize: 11, marginTop: 6, color: 'rgba(239,68,68,0.7)' }}>
               Mandatory KPIs excluded: Engagement Score, Voluntary Turnover, Regrettable Attrition, Objectives Completion, Internal Mobility, Gender Balance.
             </p>
-          </div>
-        )}
-
-        {/* Streaming indicator */}
-        {delfosStreaming && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10,
-                        background: 'var(--ai-soft)', border: '1px solid var(--ai-border)',
-                        borderRadius: 8, padding: '10px 14px' }}>
-            <svg width="16" height="16" style={{ animation: 'spin 1.2s linear infinite', flexShrink: 0 }}>
-              <circle cx="8" cy="8" r="6" fill="none" stroke="var(--purple)" strokeWidth="2"
-                strokeDasharray="10 28" strokeLinecap="round" />
-            </svg>
-            <span style={{ fontSize: 13, color: 'var(--purple)', fontWeight: 500 }}>
-              ✦ Delfos is generating your objectives…
-            </span>
           </div>
         )}
 
@@ -1054,6 +1096,12 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
                         : draftImproving[obj.id] === 'scoring' ? '⏳ Puntuando…'
                         : '✦ Mejorar'}
                     </button>
+                    <button
+                      style={{ ...ds.aiBtn, fontSize: 12, padding: '5px 12px' }}
+                      disabled={!!draftImproving[obj.id] || draftRescoring[obj.id] || !obj.title?.trim()}
+                      onClick={() => handleCardRescore(obj)}>
+                      {draftRescoring[obj.id] ? '⏳ Puntuando…' : '◎ Re-puntuar'}
+                    </button>
                   </div>
 
                   {draftRegenPicker[obj.id] && !draftImproving[obj.id] && (
@@ -1116,16 +1164,42 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
 
         {/* Footer */}
         <div style={ds.footer}>
-          <button style={ds.addBtn2} onClick={addObjective}>+ Crear otro objetivo</button>
-          <button style={{ ...ds.scoreBtn, opacity: (canScore && !delfosStreaming) ? 1 : 0.4 }}
-            disabled={!canScore || delfosStreaming} onClick={handleScore}
-            title={
-              kpiViolations.length > 0 ? 'Remove People KPI duplicates first'
-              : needsTeam && !hasTeamObj ? 'Add a Team objective first'
-              : undefined
-            }>
-            Score &amp; Review →
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
+            {showAddPicker ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button style={ds.addBtn2} onClick={() => { setShowAddPicker(false); addObjective() }}>
+                  + Manual
+                </button>
+                <button style={{ ...ds.addBtn2, background: 'var(--ai-soft)', border: '1px solid var(--ai-border)', color: 'var(--purple)' }}
+                  onClick={() => { setShowAddPicker(false); handleAskDelfos() }}>
+                  ✦ Con Delfos
+                </button>
+                <button style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: 13 }}
+                  onClick={() => setShowAddPicker(false)}>✕</button>
+              </div>
+            ) : (
+              <button style={ds.addBtn2} onClick={() => setShowAddPicker(true)}>+ Crear otro objetivo</button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+            {hasFilled && !countOk && (
+              <span style={{ fontSize: 11, color: 'var(--tx2)' }}>
+                {filledObjs.length < 3 ? `Mínimo 3 objetivos (tienes ${filledObjs.length})` : `Máximo 5 objetivos (tienes ${filledObjs.length})`}
+              </span>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={{ ...ds.scoreBtn, opacity: canScore ? 1 : 0.4 }}
+                disabled={!canScore} onClick={handleScore}
+                title={
+                  !countOk ? (filledObjs.length < 3 ? 'Necesitas al menos 3 objetivos' : 'Máximo 5 objetivos')
+                  : kpiViolations.length > 0 ? 'Remove People KPI duplicates first'
+                  : needsTeam && !hasTeamObj ? 'Add a Team objective first'
+                  : undefined
+                }>
+                Score &amp; Review →
+              </button>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -1176,6 +1250,9 @@ const ds = {
                        borderRadius: 8, cursor: 'pointer' },
   scoreBtn:          { background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: 8,
                        fontSize: 14, fontWeight: 600, padding: '9px 20px', cursor: 'pointer' },
+  delfosFullBtn:     { background: 'var(--ai-soft)', border: '1px solid var(--ai-border)',
+                       color: 'var(--purple)', borderRadius: 10, fontSize: 15, fontWeight: 600,
+                       padding: '14px 0', cursor: 'pointer', width: '100%' },
   editProfileBtn:    { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 11,
                        cursor: 'pointer', padding: '2px 0', textDecoration: 'underline', textDecorationStyle: 'dotted' },
 }

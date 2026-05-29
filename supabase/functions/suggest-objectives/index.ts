@@ -90,24 +90,18 @@ Respect this preference while still applying all archetype rules above (e.g. A/B
 The following are MANDATORY KPIs tracked separately by HR. NEVER generate an objective that duplicates, rephrases, or is primarily about these metrics:
 ${PEOPLE_KPIS.map(k => `- ${k}`).join('\n')}
 
-If you generate an objective that overlaps with any of the above, the submission will be invalid. Focus individual objectives on delivery, projects, and skills — not on HR compliance metrics.
-
 ## General rules
 - Each objective must be SMART: specific, measurable, time-bound
 - Include a clear baseline, target, and measurement method in the description
 - Include exactly 3 Key Results per objective (KR1, KR2, KR3)
-- Do NOT include People Management KPIs (those are tracked separately)
 - Write in English, professional tone, concise
 - CRITICAL: Keep all values on one line — never use literal newlines inside JSON string values
 
-Return ONLY 5 lines of NDJSON — one complete JSON object per line. No array brackets, no markdown, no extra text. Each object must be entirely on a single line:
-{"type":"performance","title":"...","description":"...","key_results":["KR1: ...","KR2: ...","KR3: ..."],"by_when":"Q4 2026","metric":"primary KPI and target value (e.g. NPS from 45 to 60)","value_statement":"one sentence: how this objective adds value to X-ELIO's business"}
-{"type":"performance","title":"...","description":"...","key_results":["KR1: ...","KR2: ...","KR3: ..."],"by_when":"Q3 2026","metric":"...","value_statement":"..."}
-{"type":"performance","title":"...","description":"...","key_results":["KR1: ...","KR2: ...","KR3: ..."],"by_when":"Q4 2026","metric":"...","value_statement":"..."}
-{"type":"learning","title":"...","description":"...","key_results":["KR1: ...","KR2: ...","KR3: ..."],"by_when":"Q2 2026","metric":"...","value_statement":"..."}
-{"type":"team","title":"...","description":"...","key_results":["KR1: ...","KR2: ...","KR3: ..."],"by_when":"Q3 2026","metric":"...","value_statement":"..."}
-
-The last line shows type "team" as an example for people managers (Archetype A/B). If the archetype is C or D, replace it with a "learning" or "performance" objective — do NOT include any "team" type.`
+Return ONLY a valid JSON array of exactly 5 objects. No markdown, no explanation, no extra text:
+[
+  {"type":"performance","title":"...","description":"...","key_results":["KR1: ...","KR2: ...","KR3: ..."],"by_when":"Q4 2026","metric":"primary KPI and target value","value_statement":"one sentence: how this adds value to X-ELIO"},
+  ...
+]`
 
     const userPrompt = `## Employee profile
 - Name: ${profile.full_name}
@@ -115,13 +109,13 @@ The last line shows type "team" as an example for people managers (Archetype A/B
 - Department: ${profile.department || 'Not specified'}
 - Country / Market: ${profile.country_label ?? 'Corporate'}
 - Archetype: ${profile.archetype_code} — ${profile.archetype_label}
-${isManager ? `- This is a PEOPLE MANAGER (Archetype ${profile.archetype_code}): portfolio MUST include at least 1 "team" type objective and MUST NOT duplicate any mandatory People Management KPIs.` : `- This is an INDIVIDUAL CONTRIBUTOR (Archetype ${profile.archetype_code}): use only "performance" and "learning" types. Do NOT include any "team" type objectives.`}
+${isManager ? `- This is a PEOPLE MANAGER (Archetype ${profile.archetype_code}): portfolio MUST include at least 1 "team" type objective.` : `- This is an INDIVIDUAL CONTRIBUTOR (Archetype ${profile.archetype_code}): use only "performance" and "learning" types.`}
 ${priorities ? `- Self-reported priorities for 2026: ${priorities}` : ''}
 
-## Strategic context (use for alignment, not as a template)
+## Strategic context
 ${cascadeText || 'No cascade data available.'}
 
-Design 5 objectives that are highly relevant to this person's role and market, compliant with all type rules above, and where natural, connected to the strategic priorities above.`
+Design 5 objectives highly relevant to this person's role and market.`
 
     const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -133,7 +127,6 @@ Design 5 objectives that are highly relevant to this person's role and market, c
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 2500,
-        stream: true,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       }),
@@ -144,78 +137,31 @@ Design 5 objectives that are highly relevant to this person's role and market, c
       throw new Error(`Anthropic API error ${apiRes.status}: ${errBody}`)
     }
 
-    let sseBuffer = ''
-    let textBuffer = ''
-    let objIndex = 0
+    const apiData = await apiRes.json()
+    const raw = apiData.content[0].text.trim()
+    const jsonStart = raw.indexOf('[')
+    const jsonEnd   = raw.lastIndexOf(']')
+    if (jsonStart === -1 || jsonEnd === -1) throw new Error(`No JSON array in response: ${raw.slice(0, 200)}`)
+    const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as any[]
 
-    const outStream = new ReadableStream({
-      async start(controller) {
-        const reader = apiRes.body!.getReader()
-        const textDecoder = new TextDecoder()
-        const encoder = new TextEncoder()
+    const objectives = parsed
+      .filter((obj: any) => obj.title)
+      .map((obj: any, i: number) => ({
+        id:              Date.now() + i,
+        type:            obj.type ?? 'performance',
+        title:           obj.title ?? '',
+        description:     obj.description ?? '',
+        key_results:     obj.key_results ?? [],
+        by_when:         obj.by_when ?? '',
+        metric:          obj.metric ?? '',
+        value_statement: obj.value_statement ?? '',
+        source:          'delfos',
+        status:          'active',
+        score:           null,
+      }))
 
-        function emitLine(raw: string) {
-          const trimmed = raw.trim()
-          if (!trimmed || trimmed === '[' || trimmed === ']') return
-          const cleaned = trimmed.endsWith(',') ? trimmed.slice(0, -1) : trimmed
-          try {
-            const obj = JSON.parse(cleaned)
-            if (!obj.title) return
-            const result = {
-              id:              Date.now() + objIndex++,
-              type:            obj.type ?? 'performance',
-              title:           obj.title ?? '',
-              description:     obj.description ?? '',
-              key_results:     obj.key_results ?? [],
-              by_when:         obj.by_when ?? '',
-              metric:          obj.metric ?? '',
-              value_statement: obj.value_statement ?? '',
-              source:          'delfos',
-              status:          'active',
-              score:           null,
-            }
-            controller.enqueue(encoder.encode(JSON.stringify(result) + '\n'))
-          } catch (_) {}
-        }
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            sseBuffer += textDecoder.decode(value, { stream: true })
-            const sseLines = sseBuffer.split('\n')
-            sseBuffer = sseLines.pop() ?? ''
-
-            for (const sseLine of sseLines) {
-              if (!sseLine.startsWith('data: ')) continue
-              const data = sseLine.slice(6).trim()
-              if (data === '[DONE]') continue
-              try {
-                const event = JSON.parse(data)
-                if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-                  textBuffer += event.delta.text
-                  const nlIdx = textBuffer.lastIndexOf('\n')
-                  if (nlIdx >= 0) {
-                    const completed = textBuffer.slice(0, nlIdx)
-                    textBuffer = textBuffer.slice(nlIdx + 1)
-                    for (const line of completed.split('\n')) emitLine(line)
-                  }
-                }
-              } catch (_) {}
-            }
-          }
-          if (textBuffer) emitLine(textBuffer)
-        } catch (err) {
-          controller.error(err)
-          return
-        }
-        controller.close()
-      },
-    })
-
-    return new Response(outStream, {
-      headers: { ...cors, 'Content-Type': 'application/x-ndjson' },
+    return new Response(JSON.stringify({ objectives }), {
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (err) {
     console.error('suggest-objectives error:', err)

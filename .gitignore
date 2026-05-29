@@ -7,3 +7,4 @@ dist/
 # Repo MUST be private — do not push these to a public repository
 supabase/seeds/
 migrate.py
+supabase/.temp/
