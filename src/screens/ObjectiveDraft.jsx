@@ -973,18 +973,9 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
                     {obj.source === 'delfos' && <span style={rs.delfosBadge}>DELFOS</span>}
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    {['performance', 'learning', 'team'].map(t => (
-                      <button key={t} onClick={() => update(obj.id, 'type', t)}
-                        style={{
-                          ...ds.typeBtn,
-                          background: obj.type === t
-                            ? (t === 'team' ? 'var(--purple)' : t === 'learning' ? 'var(--blue)' : 'var(--ac)')
-                            : 'var(--card-2)',
-                          color: obj.type === t ? '#fff' : 'var(--tx2)',
-                        }}>
-                        {t.charAt(0).toUpperCase() + t.slice(1)}
-                      </button>
-                    ))}
+                    {obj.type === 'learning' && <span style={rs.learnBadge}>LEARNING</span>}
+                    {obj.type === 'team'     && <span style={rs.teamBadge}>TEAM</span>}
+                    {obj.type === 'performance' && <span style={rs.perfBadge}>PERFORMANCE</span>}
                     {objectives.length > 1 && (
                       <button onClick={() => remove(obj.id)} style={ds.removeBtn}>✕</button>
                     )}
