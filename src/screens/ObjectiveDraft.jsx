@@ -1116,32 +1116,7 @@ export default function ObjectiveDraft({ onNavigate, onSettings, onEmployeeView,
 
         {/* Footer */}
         <div style={ds.footer}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {['performance', 'learning', 'team'].map(t => {
-              const disabled = t === 'team' && !needsTeam
-              return (
-                <button key={t}
-                  disabled={disabled}
-                  onClick={() => !disabled && setDelfosType(t)}
-                  style={{
-                    ...ds.typeBtn,
-                    opacity: disabled ? 0.3 : 1,
-                    cursor: disabled ? 'not-allowed' : 'pointer',
-                    background: delfosType === t
-                      ? (t === 'team' ? 'var(--purple)' : t === 'learning' ? 'var(--blue)' : 'var(--ac)')
-                      : 'var(--card-2)',
-                    color: delfosType === t ? '#fff' : 'var(--tx2)',
-                  }}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </button>
-              )
-            })}
-            <button style={{ ...ds.aiBtn, opacity: delfosStreaming ? 0.5 : 1 }}
-              disabled={delfosStreaming}
-              onClick={handleAskDelfos}>
-              {delfosStreaming ? '⏳ Generando…' : '✦ Añadir sugerencias de Delfos'}
-            </button>
-          </div>
+          <button style={ds.addBtn2} onClick={addObjective}>+ Crear otro objetivo</button>
           <button style={{ ...ds.scoreBtn, opacity: (canScore && !delfosStreaming) ? 1 : 0.4 }}
             disabled={!canScore || delfosStreaming} onClick={handleScore}
             title={
@@ -1190,6 +1165,9 @@ const ds = {
   addBtn:            { background: 'none', border: '1px dashed var(--border)', color: 'var(--tx2)',
                        borderRadius: 8, padding: '10px 0', cursor: 'pointer', fontSize: 13,
                        fontWeight: 500, width: '100%' },
+  addBtn2:           { background: 'none', border: '1px solid var(--border)', color: 'var(--tx2)',
+                       borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontSize: 13,
+                       fontWeight: 500 },
   footer:            { display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                        paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 8 },
   backBtn:           { background: 'none', border: 'none', color: 'var(--tx2)', fontSize: 14, cursor: 'pointer' },
